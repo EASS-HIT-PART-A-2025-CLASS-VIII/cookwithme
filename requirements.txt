@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlmodel
+pydantic
+sqlalchemy
+pytest
+pytest-cov
+httpx
+typer
