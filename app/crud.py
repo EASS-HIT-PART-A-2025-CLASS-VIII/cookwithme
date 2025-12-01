@@ -1,6 +1,7 @@
 from sqlmodel import Session, select
 from .models import Recipe, RecipeCreate, RecipeUpdate
 from .database import engine
+from fastapi import HTTPException
 
 
 def get_all_recipes():
@@ -29,12 +30,29 @@ def update_recipe(recipe_id: int, data: RecipeUpdate):
         if not recipe:
             return None
 
-        # Convert only provided fields (exclude_unset=True)
-        update_data = data.model_dump(exclude_unset=True)
+        if data.title is not None:
+            if len(data.title) < 2:
+                raise HTTPException(status_code=422, detail="Title too short")
+            recipe.title = data.title
 
-        # Update recipe fields
-        for key, value in update_data.items():
-            setattr(recipe, key, value)
+        if data.ingredients is not None:
+            recipe.ingredients = data.ingredients
+
+        if data.instructions is not None:
+            recipe.instructions = data.instructions
+
+        if data.time_minutes is not None:
+            if data.time_minutes <= 0:
+                raise HTTPException(status_code=422)
+            recipe.time_minutes = data.time_minutes
+
+        if data.difficulty is not None:
+            recipe.difficulty = data.difficulty
+
+        if data.image_url is not None:
+            if len(data.image_url) < 5:
+                raise HTTPException(status_code=422)
+            recipe.image_url = data.image_url
 
         session.commit()
         session.refresh(recipe)

@@ -87,36 +87,6 @@ docker exec -e PYTHONPATH=/app <container_id> python seed/seed_data.py
 
 ---
 
-## 📂 Project Structure
-
-```text
-cookwithme/
-├── app/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── models.py
-│   ├── crud.py
-│   └── database.py
-│
-├── seed/
-│   └── seed_data.py
-│
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py
-│   ├── test_create.py
-│   ├── test_read.py
-│   ├── test_update.py
-│   ├── test_delete.py
-│   └── test_validation.py
-│
-├── Dockerfile
-├── README.md
-└── requirements.txt
-```
-
----
-
 ## 🧪 Automated Tests
 
 **Run all tests:**

@@ -4,11 +4,10 @@ def test_delete_recipe(client):
     # Create recipe
     new_recipe = {
         "title": "ToDelete",
-        "ingredients": "X, Y",
+        "ingredients": ["X", "Y",],
         "instructions": "Something",
         "time_minutes": 5,
         "difficulty": "Easy",
-        "category": "Test",
         "image_url": "https://example.com/test-delete.jpg"
     }
 

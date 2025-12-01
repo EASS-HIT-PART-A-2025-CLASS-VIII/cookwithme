@@ -9,7 +9,7 @@ def test_get_all_recipes_after_creation(client):
     """Test that after creating a recipe, it appears in GET"""
     new_recipe = {
         "title": "Pasta",
-        "ingredients": "Pasta, Cheese",
+        "ingredients": ["Pasta", "Cheese",],
         "instructions": "Boil and mix",
         "time_minutes": 10,
         "difficulty": "Easy",
@@ -31,7 +31,7 @@ def test_get_recipe_by_id(client):
     """Test that a recipe can be retrieved by ID"""
     new_recipe = {
         "title": "Salad",
-        "ingredients": "Lettuce, Tomato",
+        "ingredients": ["Lettuce", "Tomato",],
         "instructions": "Mix together",
         "time_minutes": 5,
         "difficulty": "Easy",

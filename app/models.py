@@ -1,94 +1,39 @@
 from sqlmodel import SQLModel, Field
-from typing import Optional
+from typing import Optional, List
 from enum import Enum
+from sqlalchemy import Column, JSON
 
 
-# Difficulty Enum
 class Difficulty(str, Enum):
     easy = "Easy"
     medium = "Medium"
     hard = "Hard"
 
 
-# Base class shared by Create & DB model
 class RecipeBase(SQLModel):
-    title: str = Field(
-        min_length=2,
-        description="Short title of the recipe"
+    title: str = Field(min_length=2)
+    ingredients: List[str] = Field(
+        sa_column=Column(JSON), ## Stores ingredients as JSON to keep the API clean and strongly typed
+        description="List of ingredients"
     )
-
-    ingredients: str = Field(
-        min_length=3,
-        description="Comma-separated list of ingredients"
-    )
-
-    instructions: str = Field(
-        min_length=5,
-        description="Step-by-step instructions"
-    )
-
-    time_minutes: int = Field(
-        gt=0,
-        description="Preparation time in minutes"
-    )
-
-    difficulty: Difficulty = Field(
-        description="Recipe difficulty level"
-    )
+    instructions: str = Field(min_length=5)
+    time_minutes: int = Field(gt=0)
+    difficulty: Difficulty
+    image_url: str = Field(min_length=5, max_length=500)
 
 
-    image_url: str = Field(
-        min_length=5,
-        max_length=500,
-        description="Image URL of the recipe"
-    )
-
-
-# Database model
 class Recipe(RecipeBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
 
-# Create model
 class RecipeCreate(RecipeBase):
-    pass
+    pass #Class inherits from RecipeBase
 
 
-# Update model (all optional)
 class RecipeUpdate(SQLModel):
-    title: Optional[str] = Field(
-        default=None,
-        min_length=2,
-        description="Short title of the recipe"
-    )
-
-    ingredients: Optional[str] = Field(
-        default=None,
-        min_length=3,
-        description="Updated list of ingredients"
-    )
-
-    instructions: Optional[str] = Field(
-        default=None,
-        min_length=5,
-        description="Updated instructions"
-    )
-
-    time_minutes: Optional[int] = Field(
-        default=None,
-        gt=0,
-        description="Updated preparation time"
-    )
-
-    difficulty: Optional[Difficulty] = Field(
-        default=None,
-        description="Updated difficulty level"
-    )
-
-
-    image_url: Optional[str] = Field(
-        default=None,
-        min_length=5,
-        max_length=500,
-        description="Updated image URL"
-    )
+    title: Optional[str] = None
+    ingredients: Optional[List[str]] = None
+    instructions: Optional[str] = None
+    time_minutes: Optional[int] = Field(default=None, gt=0)
+    difficulty: Optional[Difficulty] = None
+    image_url: Optional[str] = Field(default=None, min_length=5, max_length=500)

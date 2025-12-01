@@ -6,7 +6,7 @@ def sample_recipe(client):
     """Create a sample recipe using the API"""
     resp = client.post("/recipes", json={
         "title": "Sample",
-        "ingredients": "Test Ingredient",
+        "ingredients": ["Test Ingredient",],
         "instructions": "Cook well",
         "time_minutes": 10,
         "difficulty": "Easy",
@@ -20,7 +20,7 @@ def test_create_recipe_invalid_title(client):
     """Too short title → 422"""
     resp = client.post("/recipes", json={
         "title": "A",
-        "ingredients": "Sugar, Milk",
+        "ingredients": ["Sugar", "Milk",],
         "instructions": "Mix well",
         "time_minutes": 10,
         "difficulty": "Easy",
@@ -33,7 +33,7 @@ def test_create_recipe_negative_time(client):
     """Negative time → 422"""
     resp = client.post("/recipes", json={
         "title": "Cake",
-        "ingredients": "Sugar",
+        "ingredients": ["Sugar",],
         "instructions": "Bake",
         "time_minutes": -5,
         "difficulty": "Hard",
@@ -46,7 +46,7 @@ def test_create_recipe_invalid_difficulty(client):
     """Invalid difficulty → 422"""
     resp = client.post("/recipes", json={
         "title": "Pasta",
-        "ingredients": "Pasta, Cheese",
+        "ingredients": ["Pasta","Cheese",],
         "instructions": "Cook",
         "time_minutes": 15,
         "difficulty": "Impossible",
@@ -67,7 +67,7 @@ def test_create_recipe_missing_image_url(client):
     """Image URL missing → 422"""
     resp = client.post("/recipes", json={
         "title": "NoImage",
-        "ingredients": "A, B",
+        "ingredients": ["A", "B",],
         "instructions": "Mix",
         "time_minutes": 10,
         "difficulty": "Easy"
@@ -79,7 +79,7 @@ def test_create_recipe_short_image_url(client):
     """Image URL too short → 422"""
     resp = client.post("/recipes", json={
         "title": "Test",
-        "ingredients": "A, B",
+        "ingredients": ["A", "B",],
         "instructions": "Mix",
         "time_minutes": 10,
         "difficulty": "Easy",

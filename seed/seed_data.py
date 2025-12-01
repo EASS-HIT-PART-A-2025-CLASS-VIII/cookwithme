@@ -1,7 +1,7 @@
 import typer
 from sqlmodel import Session
 from app.database import engine, init_db
-from app.models import Recipe
+from app.models import Recipe, Difficulty
 
 app = typer.Typer()
 
@@ -13,42 +13,69 @@ def fill():
     recipes = [
         Recipe(
             title="Pasta alla Vodka",
-            ingredients="Pasta, tomato paste, vodka, cream, garlic, onion",
+            ingredients=[
+                "Pasta",
+                "Tomato paste",
+                "Vodka",
+                "Cream",
+                "Garlic",
+                "Onion"
+            ],
             instructions="Cook pasta. Prepare sauce. Mix together.",
             time_minutes=25,
-            difficulty="Easy",
+            difficulty=Difficulty.easy,
             image_url="https://example.com/vodka.jpg"
         ),
         Recipe(
             title="Margherita Pizza",
-            ingredients="Dough, tomato sauce, mozzarella, basil",
+            ingredients=[
+                "Dough",
+                "Tomato sauce",
+                "Mozzarella",
+                "Basil"
+            ],
             instructions="Bake pizza and add basil.",
             time_minutes=30,
-            difficulty="Medium",
+            difficulty=Difficulty.medium,
             image_url="https://example.com/pizza.jpg"
         ),
         Recipe(
             title="Falafel",
-            ingredients="Chickpeas, onion, garlic, parsley",
+            ingredients=[
+                "Chickpeas",
+                "Onion",
+                "Garlic",
+                "Parsley"
+            ],
             instructions="Blend, shape balls, and fry.",
             time_minutes=30,
-            difficulty="Medium",
+            difficulty=Difficulty.medium,
             image_url="https://example.com/falafel.jpg"
         ),
         Recipe(
             title="Greek Salad",
-            ingredients="Tomatoes, cucumber, feta, olives",
+            ingredients=[
+                "Tomatoes",
+                "Cucumber",
+                "Feta",
+                "Olives"
+            ],
             instructions="Chop and mix ingredients.",
             time_minutes=10,
-            difficulty="Easy",
+            difficulty=Difficulty.easy,
             image_url="https://example.com/salad.jpg"
         ),
         Recipe(
             title="Shakshuka",
-            ingredients="Eggs, tomatoes, onion, spices",
+            ingredients=[
+                "Eggs",
+                "Tomatoes",
+                "Onion",
+                "Spices"
+            ],
             instructions="Simmer sauce and cook eggs.",
             time_minutes=25,
-            difficulty="Medium",
+            difficulty=Difficulty.medium,
             image_url="https://example.com/shakshuka.jpg"
         ),
     ]
@@ -58,6 +85,7 @@ def fill():
         session.commit()
 
     typer.echo("✅ 5 recipes inserted successfully")
+
 
 if __name__ == "__main__":
     app()

@@ -2,7 +2,7 @@ def test_create_recipe(client):
     """Test for creating new recipe"""
     new_recipe = {
         "title": "Pizza",
-        "ingredients": "Cheese, Dough",
+        "ingredients": ["Cheese", "Dough",],
         "instructions": "Bake in oven",
         "time_minutes": 20,
         "difficulty": "Medium",
@@ -23,7 +23,7 @@ def test_create_multiple_recipes(client):
     recipes = [
         {
             "title": "Soup",
-            "ingredients": "Water, Vegetables",
+            "ingredients": ["Water", "Vegetables",],
             "instructions": "Boil it well",
             "time_minutes": 15,
             "difficulty": "Easy",
@@ -31,7 +31,7 @@ def test_create_multiple_recipes(client):
         },
         {
             "title": "Cake",
-            "ingredients": "Flour, Sugar",
+            "ingredients": ["Flour", "Sugar",],
             "instructions": "Mix and bake",
             "time_minutes": 40,
             "difficulty": "Hard",

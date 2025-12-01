@@ -8,6 +8,7 @@ from app.crud import (
     update_recipe,
     delete_recipe,
 )
+from fastapi import Body
 
 app = FastAPI(
     title="CookWithMe API",
@@ -18,7 +19,7 @@ app = FastAPI(
 @app.on_event("startup")
 def on_startup():
     init_db()
-    
+
 @app.post("/recipes", response_model=Recipe, status_code=201)
 def create_recipe_endpoint(recipe: RecipeCreate):
     return create_recipe(recipe)
@@ -35,7 +36,10 @@ def read_one(recipe_id: int):
     return recipe
 
 @app.put("/recipes/{recipe_id}", response_model=Recipe)
-def update_recipe_endpoint(recipe_id: int, data: RecipeUpdate):
+def update_recipe_endpoint(
+    recipe_id: int,
+    data: RecipeUpdate = Body(...)
+):
     updated = update_recipe(recipe_id, data)
     if updated is None:
         raise HTTPException(status_code=404, detail="Recipe not found")
