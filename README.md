@@ -1,157 +1,145 @@
-# 🍽️ CookWithMe — Recipe Management REST API
+# 🍽️ CookWithMe — Full Stack Recipe Management
 
-CookWithMe is a clean, fully-tested **backend REST API** built with **FastAPI** and **SQLModel** for managing cooking recipes.
+CookWithMe is a recipe management system featuring a **FastAPI backend** and a modern **Streamlit frontend**.
 
-The project was developed as part of an academic backend assignment (EX1) and demonstrates **proper API design, data validation, separation of concerns, and automated testing**.
+The project was developed as part of an academic assignment to demonstrate **proper API design, data validation, separation of concerns, and full-stack integration**.
 
 ---
 
 ## 📖 Overview
 
-CookWithMe provides a realistic backend setup for recipe management:
+CookWithMe provides a complete solution for managing cooking recipes:
 
-- REST API using **FastAPI**
-- Database modeling with **SQLModel**
-- SQLite persistence
-- Full **CRUD** operations
-- Strong validation using **Pydantic** (via SQLModel)
-- Automated tests with **pytest**
-- Clean separation between **production** and **test** databases
+- **Backend:** REST API using **FastAPI**, **SQLModel**, and SQLite.
+- **Frontend:** Interactive web interface built with **Streamlit**.
+- **Features:** Image uploads, auto-validation, and responsive recipe cards.
+- **Reliability:** Comprehensive automated testing with **pytest**.
 
 ---
 
 ## ✨ Main Features
 
-### 🧩 API
-- Full CRUD endpoints under `/recipes`
-- JSON-based request & response models
-- Proper HTTP status codes (201, 404, 422, etc.)
+### 🧩 API (Backend)
+- Full **CRUD** endpoints under `/recipes`.
+- **Image Handling:** Supports Base64 image storage and processing via **Pillow**.
+- Strong validation using **Pydantic** (enums, length checks).
+- Proper HTTP status codes (201, 404, 422).
 
-### ✅ Validation
-- Field validation handled automatically by **Pydantic**
-- Minimum length checks for text fields
-- Enum validation for difficulty levels
-- Invalid payloads rejected with `422`
+### 🖥️ UI (Frontend)
+- **Visual Recipe Book:** View recipes as designed cards with difficulty badges.
+- **Interactive Forms:** Add and edit recipes with real-time feedback.
+- **Image Uploads:** Drag-and-drop support for recipe photos.
+- **Filtering:** Filter recipes by difficulty level.
 
 ### 🗄️ Database
-- SQLite persistence for production use
-- **In-memory SQLite** used during testing
-- Absolute isolation between test DB and production DB
-- Automatic table creation via SQLModel metadata
-
-### 🧪 Testing
-- 20 automated tests using **pytest**
-- Covers:
-  - Create
-  - Read (all / by ID)
-  - Update
-  - Delete
-  - Validation & error cases
-- Each test runs on a clean, isolated database
+- **SQLite** persistence for production use.
+- **In-memory SQLite** used during automated testing (absolute isolation).
+- Automatic table creation via SQLModel metadata.
 
 ---
 
-### 🌱 Optional Seed Data
+## 🚀 Run Locally
 
-The project includes an **optional database seed script** that inserts sample recipes
-(e.g. Falafel, Margherita Pizza, Pasta alla Vodka, Greek Salad, Shakshuka).
+### 1. Setup Environment
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-- Executed manually for demonstration purposes
-- Not used during automated tests
-- Keeps production, demo, and test data fully separated
+# Install dependencies (Backend + Frontend)
+pip install -r requirements.txt
+```
 
-By default, the API starts with an empty database.
+### 2. Start the Backend (API)
+Run the server in one terminal:
+```bash
+uvicorn app.main:app --reload
+```
 
-The seed script is **not executed automatically** and is intended
-for **manual demo purposes only**.
+*API is now running at: `http://127.0.0.1:8000`*
 
-To insert sample recipes locally:
+### 3. Start the Frontend (UI)
+Open a **new terminal** (with the venv activated) and run:
+```bash
+streamlit run streamlit_app.py
+```
 
+👉 **The UI will open in your browser automatically.**
+
+---
+
+## 🌱 Seed Data
+
+The project includes a seed script that populates the database with sample recipes (e.g., Falafel, Pizza, Pasta).
+
+* **Local Development:** Run manually with:
 ```bash
 python seed/seed_data.py
 ```
-When running with **Docker**, the seed can be executed inside the running container using the following command:
-
-```bash
-docker exec -e PYTHONPATH=/app <container_id> python seed/seed_data.py
-```
-**Note:** Automated tests and production startup always begin with a clean, empty database.
+* **Docker:** Runs **automatically** on container startup.
 
 ---
 
-### 🐳 Docker Support
+## 🧪 Testing
 
-- Dockerfile included
-- Enables running the API in an isolated environment
-- No local Python setup required
+The project includes a comprehensive test suite:
 
----
-
-## 🧪 Automated Tests
+* ✅ Tests use an in-memory database
+* ✅ Production DB is never touched
+* ✅ Seed data is NOT loaded during tests
 
 **Run all tests:**
-
 ```bash
 pytest -q
 ```
-Expected output:
-
-> 20 passed in X.XXs
-
-* **✅ Tests use an in-memory database**
-* **✅ Production DB is never touched**
-* **✅ No seed data is loaded**
 
 ---
 
 ## 📡 API Endpoints
 
 | Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| **POST** | `/recipes` | Create recipe |
-| **GET** | `/recipes` | Get all recipes |
-| **GET** | `/recipes/{id}` | Get by ID |
-| **PUT** | `/recipes/{id}` | Update recipe |
-| **DELETE** | `/recipes/{id}` | Delete recipe |
+|--------|----------|-------------|
+| POST | `/recipes` | Create recipe (with image support) |
+| GET | `/recipes` | Get all recipes |
+| GET | `/recipes/{id}` | Get by ID |
+| PUT | `/recipes/{id}` | Update recipe |
+| DELETE | `/recipes/{id}` | Delete recipe |
 
 ---
 
-## 🚀 Run Locally
+## 🐳 Run with Docker
 
-1.  **(Optional) Create virtual environment:**
-    ```bash
-    python -m venv venv
-    source venv/bin/activate
-    ```
-2.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  **Start the API:**
-    ```bash
-    uvicorn app.main:app --reload
-    ```
-4.  **Open Swagger UI:**
-    👉 `http://127.0.0.1:8000/docs`
+The project includes a `Dockerfile` and `entrypoint.sh` for a production-ready setup.
 
----
+**When running in Docker:**
+1. The database is initialized automatically.
+2. **Seed data is loaded automatically** (so you start with a populated DB).
+3. The API starts on port 8000.
 
-## 🐳 Run with Docker (Optional)
+### Build and Run
 
-1.  **Build the image:**
-    ```bash
-    docker build -t cookwithme .
-    ```
-2.  **Run the container:**
-    ```bash
-    docker run -p 8000:8000 cookwithme
-    ```
-3.  **Access Swagger UI:**
-    👉 `http://127.0.0.1:8000/docs`
+1. Build the image:
+```bash
+docker build -t cookwithme .
+```
+
+2. Run the container:
+```bash
+docker run -p 8000:8000 cookwithme
+```
+
+The API will start and automatically load sample data.
+
+3. Run the UI (Locally):
+
+Since the Dockerfile currently runs the API, run the UI locally to connect to it:
+```bash
+streamlit run streamlit_app.py
+```
 
 ---
 
 ## 👤 Author
 
-**Yahav Ben Hur**
+**Yahav Ben Hur**  
 📧 yahavbenhur@gmail.com
