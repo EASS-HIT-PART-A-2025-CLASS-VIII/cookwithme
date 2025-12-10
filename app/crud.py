@@ -38,8 +38,8 @@ def update_recipe(recipe_id: int, data: RecipeUpdate):
         if data.ingredients is not None:
             recipe.ingredients = data.ingredients
 
-        if data.instructions is not None:
-            recipe.instructions = data.instructions
+        if data.instructions_md is not None:
+            recipe.instructions_md = data.instructions_md
 
         if data.time_minutes is not None:
             if data.time_minutes <= 0:

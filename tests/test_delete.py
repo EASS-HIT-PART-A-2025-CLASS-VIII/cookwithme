@@ -4,8 +4,8 @@ def test_delete_recipe(client):
     # Create recipe
     new_recipe = {
         "title": "ToDelete",
-        "ingredients": ["X", "Y",],
-        "instructions": "Something",
+        "ingredients": ["X", "Y"],
+        "instructions_md": "## Instructions\nSomething",
         "time_minutes": 5,
         "difficulty": "Easy",
         "image_url": "https://example.com/test-delete.jpg"
@@ -25,7 +25,6 @@ def test_delete_recipe(client):
     # Assert returned message only
     assert "message" in data
     assert data["message"] == "Recipe deleted"
-
 
 def test_delete_recipe_not_found(client):
     """Test deleting a recipe that does not exist"""

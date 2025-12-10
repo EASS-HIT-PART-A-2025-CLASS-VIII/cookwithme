@@ -9,6 +9,8 @@ from app.crud import (
     delete_recipe,
 )
 from fastapi import Body
+from typing import List, Optional
+from pydantic import BaseModel
 
 app = FastAPI(
     title="CookWithMe API",

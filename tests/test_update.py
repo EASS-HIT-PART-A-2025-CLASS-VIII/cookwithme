@@ -4,8 +4,8 @@ def test_update_recipe(client):
     # Create
     new_recipe = {
         "title": "Original",
-        "ingredients": ["A", "B",],
-        "instructions": "Do something",
+        "ingredients": ["A", "B"],
+        "instructions_md": "## Instructions\nDo something",
         "time_minutes": 10,
         "difficulty": "Easy",
         "image_url": "https://example.com/original.jpg"
@@ -20,8 +20,8 @@ def test_update_recipe(client):
     # Update
     update_data = {
         "title": "Updated Title",
-        "ingredients": ["New Ingredients",],
-        "instructions": "New Instructions",
+        "ingredients": ["New Ingredients"],
+        "instructions_md": "## Instructions\nNew Instructions",
         "time_minutes": 20,
         "difficulty": "Medium",
         "image_url": "https://example.com/updated.jpg"
@@ -33,8 +33,8 @@ def test_update_recipe(client):
     updated = update_response.json()
 
     assert updated["title"] == "Updated Title"
-    assert updated["ingredients"] == ["New Ingredients",]
-    assert updated["instructions"] == "New Instructions"
+    assert updated["ingredients"] == ["New Ingredients"]
+    assert updated["instructions_md"] == "## Instructions\nNew Instructions"
     assert updated["time_minutes"] == 20
     assert updated["difficulty"] == "Medium"
     assert updated["image_url"] == "https://example.com/updated.jpg"

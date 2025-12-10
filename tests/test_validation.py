@@ -6,8 +6,8 @@ def sample_recipe(client):
     """Create a sample recipe using the API"""
     resp = client.post("/recipes", json={
         "title": "Sample",
-        "ingredients": ["Test Ingredient",],
-        "instructions": "Cook well",
+        "ingredients": ["Test Ingredient"],
+        "instructions_md": "## Instructions\nCook well",
         "time_minutes": 10,
         "difficulty": "Easy",
         "image_url": "https://example.com/sample.jpg"
@@ -20,8 +20,8 @@ def test_create_recipe_invalid_title(client):
     """Too short title → 422"""
     resp = client.post("/recipes", json={
         "title": "A",
-        "ingredients": ["Sugar", "Milk",],
-        "instructions": "Mix well",
+        "ingredients": ["Sugar", "Milk"],
+        "instructions_md": "## Instructions\nMix well",
         "time_minutes": 10,
         "difficulty": "Easy",
         "image_url": "https://example.com/img.jpg"
@@ -33,21 +33,20 @@ def test_create_recipe_negative_time(client):
     """Negative time → 422"""
     resp = client.post("/recipes", json={
         "title": "Cake",
-        "ingredients": ["Sugar",],
-        "instructions": "Bake",
+        "ingredients": ["Sugar"],
+        "instructions_md": "## Instructions\nBake",
         "time_minutes": -5,
         "difficulty": "Hard",
         "image_url": "https://example.com/img.jpg"
     })
     assert resp.status_code == 422
 
-
 def test_create_recipe_invalid_difficulty(client):
     """Invalid difficulty → 422"""
     resp = client.post("/recipes", json={
         "title": "Pasta",
-        "ingredients": ["Pasta","Cheese",],
-        "instructions": "Cook",
+        "ingredients": ["Pasta", "Cheese"],
+        "instructions_md": "## Instructions\nCook",
         "time_minutes": 15,
         "difficulty": "Impossible",
         "image_url": "https://example.com/img.jpg"
@@ -67,8 +66,8 @@ def test_create_recipe_missing_image_url(client):
     """Image URL missing → 422"""
     resp = client.post("/recipes", json={
         "title": "NoImage",
-        "ingredients": ["A", "B",],
-        "instructions": "Mix",
+        "ingredients": ["A", "B"],
+        "instructions_md": "## Instructions\nMix",
         "time_minutes": 10,
         "difficulty": "Easy"
     })
@@ -79,8 +78,8 @@ def test_create_recipe_short_image_url(client):
     """Image URL too short → 422"""
     resp = client.post("/recipes", json={
         "title": "Test",
-        "ingredients": ["A", "B",],
-        "instructions": "Mix",
+        "ingredients": ["A", "B"],
+        "instructions_md": "## Instructions\nMix",
         "time_minutes": 10,
         "difficulty": "Easy",
         "image_url": "a"

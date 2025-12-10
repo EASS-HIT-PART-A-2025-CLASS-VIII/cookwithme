@@ -9,8 +9,8 @@ def test_get_all_recipes_after_creation(client):
     """Test that after creating a recipe, it appears in GET"""
     new_recipe = {
         "title": "Pasta",
-        "ingredients": ["Pasta", "Cheese",],
-        "instructions": "Boil and mix",
+        "ingredients": ["Pasta", "Cheese"],
+        "instructions_md": "## Instructions\nBoil and mix",
         "time_minutes": 10,
         "difficulty": "Easy",
         "image_url": "https://example.com/pasta.jpg"
@@ -31,8 +31,8 @@ def test_get_recipe_by_id(client):
     """Test that a recipe can be retrieved by ID"""
     new_recipe = {
         "title": "Salad",
-        "ingredients": ["Lettuce", "Tomato",],
-        "instructions": "Mix together",
+        "ingredients": ["Lettuce", "Tomato"],
+        "instructions_md": "## Instructions\nMix together",
         "time_minutes": 5,
         "difficulty": "Easy",
         "image_url": "https://example.com/salad.jpg"
@@ -48,7 +48,6 @@ def test_get_recipe_by_id(client):
 
     assert get_response.status_code == 200
     assert get_response.json()["title"] == "Salad"
-
 
 def test_get_recipe_not_found(client):
     """Test requesting a non-existing ID"""

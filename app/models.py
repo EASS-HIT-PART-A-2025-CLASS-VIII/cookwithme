@@ -3,7 +3,6 @@ from typing import Optional, List
 from enum import Enum
 from sqlalchemy import Column, JSON
 
-
 class Difficulty(str, Enum):
     easy = "Easy"
     medium = "Medium"
@@ -16,10 +15,13 @@ class RecipeBase(SQLModel):
         sa_column=Column(JSON), ## Stores ingredients as JSON to keep the API clean and strongly typed
         description="List of ingredients"
     )
-    instructions: str = Field(min_length=5)
+    instructions_md: str = Field(
+    min_length=10,
+    description="Markdown formatted cooking instructions"
+    )
     time_minutes: int = Field(gt=0)
     difficulty: Difficulty
-    image_url: str = Field(min_length=5, max_length=500)
+    image_url: Optional[str] = None
 
 
 class Recipe(RecipeBase, table=True):
@@ -29,11 +31,11 @@ class Recipe(RecipeBase, table=True):
 class RecipeCreate(RecipeBase):
     pass #Class inherits from RecipeBase
 
-
-class RecipeUpdate(SQLModel):
+class RecipeUpdate(SQLModel):  
     title: Optional[str] = None
     ingredients: Optional[List[str]] = None
-    instructions: Optional[str] = None
-    time_minutes: Optional[int] = Field(default=None, gt=0)
-    difficulty: Optional[Difficulty] = None
-    image_url: Optional[str] = Field(default=None, min_length=5, max_length=500)
+    instructions_md: Optional[str] = None
+    time_minutes: Optional[int] = None
+    difficulty: Optional[str] = None
+    image_url: Optional[str] = None
+
