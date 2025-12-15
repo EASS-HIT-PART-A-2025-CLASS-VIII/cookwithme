@@ -8,7 +8,9 @@ The project was developed as part of an academic assignment to demonstrate **pro
 
 ## 📖 Overview
 
-CookWithMe provides a complete solution for managing cooking recipes:
+CookWithMe provides a complete solution for managing cooking recipes.
+
+This platform is designed to present my personal, original recipes. Only the project owner (Yahav) can add, edit, or manage recipes. Future versions will include an authentication layer with two roles.
 
 - **Backend:** REST API using **FastAPI**, **SQLModel**, and SQLite.
 - **Frontend:** Interactive web interface built with **Streamlit**.
@@ -68,15 +70,16 @@ streamlit run streamlit_app.py
 
 ---
 
-## 🌱 Seed Data
+### 🌱 Seed Data
 
-The project includes a seed script that populates the database with sample recipes (e.g., Falafel, Pizza, Pasta).
+The project includes a seed script that populates the database with the recipes
 
-* **Local Development:** Run manually with:
+* **Local Development:** You can run it manually to populate your local SQLite DB.
+
+To insert the recipes manually (Local):
 ```bash
-python seed/seed_data.py
+python -m seed.seed_data
 ```
-* **Docker:** Runs **automatically** on container startup.
 
 ---
 
@@ -136,6 +139,14 @@ Since the Dockerfile currently runs the API, run the UI locally to connect to it
 ```bash
 streamlit run streamlit_app.py
 ```
+
+---
+
+## 👨‍🍳 Personal Note
+
+This project serves not only as a full-stack engineering assignment, but also as a digital recipe book containing my own original recipes, developed and refined over the years.
+All recipes, photos, and cooking methods included here are my original creations and are protected by copyright.  
+They are shared for viewing and inspiration only, and may not be copied, redistributed, or used commercially without permission.
 
 ---
 
