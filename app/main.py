@@ -9,14 +9,16 @@ from app.crud import (
     delete_recipe,
 )
 from fastapi import Body
-from typing import List, Optional
-from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(
     title="CookWithMe API",
     description="A clean and tested Recipe Management API built with FastAPI + SQLModel",
     version="1.0.0"
 )
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
 
 @app.on_event("startup")
 def on_startup():
