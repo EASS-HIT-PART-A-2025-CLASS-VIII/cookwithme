@@ -12,7 +12,7 @@ CookWithMe provides a complete solution for managing cooking recipes.
 
 This platform is designed to present my personal, original recipes. Only the project owner (Yahav) can add, edit, or manage recipes. Future versions will include an authentication layer with two roles.
 
-- **Backend:** REST API using **FastAPI**, **SQLModel**, and SQLite.
+- **Backend**: REST API using FastAPI, SQLModel, and PostgreSQL (Supabase).
 - **Frontend:** Interactive web interface built with **Streamlit**.
 - **Features:** Image uploads, auto-validation, and responsive recipe cards.
 - **Reliability:** Comprehensive automated testing with **pytest**.
@@ -34,8 +34,8 @@ This platform is designed to present my personal, original recipes. Only the pro
 - **Filtering:** Filter recipes by difficulty level.
 
 ### 🗄️ Database
-- **SQLite** persistence for production use.
-- **In-memory SQLite** used during automated testing (absolute isolation).
+- PostgreSQL (Supabase) used as a centralized production database.
+- In-memory SQLite is used during automated testing (full isolation).
 - Automatic table creation via SQLModel metadata.
 
 ---
@@ -72,13 +72,15 @@ streamlit run streamlit_app.py
 
 ### 🌱 Seed Data
 
-The project includes a seed script that populates the database with the recipes
+The project includes a seed script that populates the database with initial recipes.
 
-* **Local Development:** You can run it manually to populate your local SQLite DB.
+- **Docker:**  
+  When running via Docker or Docker Compose, the database is initialized automatically and seed data is loaded on first startup.
 
-To insert the recipes manually (Local):
+- **Local Development (non-Docker):**  
+  You may run the seed manually to populate your local database:
 ```bash
-python -m seed.seed_data
+python -m app.seed.seed_data
 ```
 
 ---
@@ -112,12 +114,42 @@ pytest -q
 
 ## 🐳 Run with Docker
 
-The project includes a `Dockerfile` and `entrypoint.sh` for a production-ready setup.
+The project includes Dockerfiles and a docker-compose.yml file
+for a full production-like environment.
 
 **When running in Docker:**
 1. The database is initialized automatically.
 2. **Seed data is loaded automatically** (so you start with a populated DB).
 3. The API starts on port 8000.
+
+## 🐳 Run with Docker Compose 
+
+This is the recommended way to run the project.
+
+### Prerequisites
+- Docker
+- Docker Compose
+- Supabase project with PostgreSQL database
+
+### Environment Variables
+
+Create a `.env` file:
+```env
+DATABASE_URL=postgresql://postgres:<PASSWORD>@<PROJECT>.supabase.co:6543/postgres?sslmode=require
+```
+### Run
+```
+docker compose up --build
+```
+
+### Services
+Backend API: http://localhost:8000
+
+API Docs (Swagger): http://localhost:8000/docs
+
+Frontend UI: http://localhost:8501
+
+---
 
 ### Build and Run
 

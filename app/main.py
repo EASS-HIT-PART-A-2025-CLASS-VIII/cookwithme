@@ -15,6 +15,10 @@ from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 
+@app.on_event("startup")
+def startup():
+    run_seed()
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 

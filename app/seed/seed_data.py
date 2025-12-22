@@ -5,15 +5,15 @@ from app.models import Recipe, Difficulty
 
 def run_seed():
     if os.getenv("SEED_DATA") != "true":
-        print("⏭️  SEED_DATA not enabled – skipping seed")
+        print("⏭️  SEED_DATA disabled")
         return
 
     init_db()
 
     with Session(engine) as session:
-        exists = session.exec(select(Recipe)).first()
-        if exists:
-            print("🔁 Seed skipped – data already exists")
+        already_exists = session.exec(select(Recipe).limit(1)).first()
+        if already_exists:
+            print("🔁 Seed skipped – DB already has data")
             return
 
         print("🌱 Seeding database...")
@@ -267,3 +267,4 @@ def run_seed():
 
 if __name__ == "__main__":
     run_seed()
+
