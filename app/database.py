@@ -1,11 +1,25 @@
-from sqlmodel import SQLModel, create_engine
+from sqlmodel import SQLModel, create_engine, Session
 import os
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'recipes.db')}"
+# 📁 מיקום קבוע לדאטה בתוך הקונטיינר (מחובר ל-Docker volume)
+DATA_DIR = "/app/data"
+DB_PATH = os.path.join(DATA_DIR, "recipes.db")
 
-engine = create_engine(DATABASE_URL, echo=False)
+# יוצרים תיקייה אם לא קיימת
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DATABASE_URL = f"sqlite:///{DB_PATH}"
+
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    connect_args={"check_same_thread": False}
+)
 
 def init_db():
-    import app.models
+    import app.models  # חשוב לטעינת הטבלאות
     SQLModel.metadata.create_all(engine)
+
+def get_session():
+    with Session(engine) as session:
+        yield session

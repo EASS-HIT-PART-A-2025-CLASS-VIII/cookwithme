@@ -13,7 +13,8 @@ if "page" not in st.session_state:
 
 st.set_page_config(page_title="CookWithMe", page_icon="🍽️", layout="wide")
 
-API_URL = "http://127.0.0.1:8000/recipes"
+BASE_URL = "http://backend:8000"
+RECIPES_URL = f"{BASE_URL}/recipes"
 
 # ------------------------
 # 2. CUSTOM CSS
@@ -46,8 +47,8 @@ html, body, [class*="css"] {
     font-weight: 700;
     color: white;
     -webkit-text-stroke: 0.6px rgba(255,255,255,0.45);
-    text-shadow:
-        0 2px 4px rgba(0,0,0,0.45),
+    text-shadow: 
+        0 2px 4px rgba(0,0,0,0.45), 
         0 0 12px rgba(201,162,77,0.40);
     display: flex;
     align-items: center;
@@ -129,6 +130,25 @@ h2, h3 { color: var(--accent); }
 
 local_css()
 
+def render_review_box(rating: int, comment: str) -> str:
+    full_star = "⭐"
+    empty_star = "☆"
+    stars = full_star * rating + empty_star * (5 - rating)
+
+    return f"""
+<div style="
+    background: #fff8e6;
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    border-left: 4px solid #f1b94e;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+">
+    <div style="font-size: 1.3rem; margin-bottom: 4px;">{stars}</div>
+    <div style="font-size: 1rem; color: #333;">{comment}</div>
+</div>
+"""
+
 # ------------------------
 # 3. SIDEBAR NAVIGATION
 # ------------------------
@@ -164,14 +184,23 @@ if st.session_state.page == "list":
 """, unsafe_allow_html=True)
 
     try:
-        response = requests.get(API_URL)
+        response = requests.get(RECIPES_URL)
         response.raise_for_status()
         recipes = response.json()
         
-        col_filter, col_spacer = st.columns([1, 3])
-        with col_filter:
-            filter_choice = st.selectbox("Filter by Difficulty:", ["All", "Easy", "Medium", "Hard"])
+        col_filter, col_search, col_spacer = st.columns([1, 2, 3])
 
+        with col_filter:
+            filter_choice = st.selectbox(
+                "Filter by Difficulty:",
+                ["All", "Easy", "Medium", "Hard"]
+            )
+
+        with col_search:
+            search_query = st.text_input(
+                "🔎 Search recipe by name",
+                placeholder="Type a word (e.g. cake)"
+            )
         st.write("") 
 
         if not recipes:
@@ -180,33 +209,50 @@ if st.session_state.page == "list":
             cols = st.columns(3)
             recipes_displayed = 0
             
-            for index, recipe in enumerate(recipes):
-                if filter_choice == "All" or filter_choice == recipe['difficulty']:
-                    recipes_displayed += 1
-                    with cols[index % 3]:
-                        difficulty = recipe['difficulty']
-                        
-                        st.markdown(f"""
+            for recipe in recipes:
+
+                matches_difficulty = (
+                    filter_choice == "All" or recipe["difficulty"] == filter_choice
+                )
+
+                matches_search = (
+                    search_query.strip() == "" or
+                    search_query.lower() in recipe["title"].lower()
+                )
+
+                if not (matches_difficulty and matches_search):
+                    continue
+
+                with cols[recipes_displayed % 3]:
+                    difficulty = recipe["difficulty"]
+
+                    st.markdown(f"""
 <div class="recipe-card">
-<div style="position: relative;">
-<img src="{recipe['image_url']}" style="width: 100%; height: 200px; object-fit: cover;">
-<span class="badge bg-{difficulty}">{difficulty}</span>
-</div>
-<div style="padding: 15px;">
-<div class="card-title">{recipe['title']}</div>
-<div style="color: #777; font-size: 0.9rem; display: flex; align-items: center; gap: 5px;">
-<span>⏱️</span> {recipe['time_minutes']} minutes
-</div>
-</div>
+    <div style="position: relative;">
+        <img src="{recipe['image_url']}" style="width: 100%; height: 200px; object-fit: cover;">
+        <span class="badge bg-{difficulty}">{difficulty}</span>
+    </div>
+    <div style="padding: 15px;">
+        <div class="card-title">{recipe['title']}</div>
+        <div style="color: #777; font-size: 0.9rem; display: flex; align-items: center; gap: 5px;">
+            <span>⏱️</span> {recipe['time_minutes']} minutes
+        </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
-                        
-                        if st.button("View Recipe 👈", key=f"btn_{recipe['id']}", use_container_width=True):
-                            st.session_state.selected_recipe = recipe
-                            st.session_state.selected_recipe_id = recipe["id"]
-                            st.session_state.edit_mode = False 
-                            st.session_state.page = "details"
-                            st.rerun()
+
+                    if st.button(
+                        "View Recipe 👈",
+                        key=f"btn_{recipe['id']}",
+                        use_container_width=True
+                    ):
+                        st.session_state.selected_recipe = recipe
+                        st.session_state.selected_recipe_id = recipe["id"]
+                        st.session_state.edit_mode = False
+                        st.session_state.page = "details"
+                        st.rerun()
+
+                recipes_displayed += 1
 
             if recipes_displayed == 0:
                 st.warning(f"No recipes found with difficulty: {filter_choice}")
@@ -304,10 +350,8 @@ elif st.session_state.page == "details":
                 }
 
                 try:
-                    response = requests.put(
-                        f"{API_URL}/{st.session_state.selected_recipe_id}",
-                        json=updated_data
-                    )
+                    response = requests.put(f"{RECIPES_URL}/{st.session_state.selected_recipe_id}", json=updated_data)
+
                     response.raise_for_status()
 
                     st.success("✅ Updated!")
@@ -322,6 +366,7 @@ elif st.session_state.page == "details":
     # VIEW MODE
     # -------------------------------------------------
     else:
+        recipe_id = st.session_state.selected_recipe_id
         if st.button("⬅️ Back"):
             st.session_state.page = "list"
             st.rerun()
@@ -345,7 +390,7 @@ elif st.session_state.page == "details":
 
         col_ing, col_inst = st.columns([1, 2])
 
-        # INGREDIENTS COLUMN - בניית ה-HTML ללא הזחות פנימיות
+        # INGREDIENTS COLUMN
         with col_ing:
             ingredients = recipe.get('ingredients', [])
             
@@ -380,7 +425,7 @@ elif st.session_state.page == "details":
         with col_del:
             if st.button("🗑️ Delete", type="primary", use_container_width=True):
                 try:
-                    requests.delete(f"{API_URL}/{st.session_state.selected_recipe_id}")
+                    requests.delete(f"{RECIPES_URL}/{st.session_state.selected_recipe_id}")
                     st.success("Deleted!")
                     st.session_state.page = "list"
                     st.rerun()
@@ -391,6 +436,52 @@ elif st.session_state.page == "details":
             if st.button("✏️ Edit", use_container_width=True):
                 st.session_state.edit_mode = True
                 st.rerun()
+        # -----------------------------------------
+        # REVIEWS SECTION
+        # -----------------------------------------
+        # Note: This requires the backend to have the GET /reviews endpoint
+        try:
+            reviews_response = requests.get(f"{RECIPES_URL}/{recipe_id}/reviews")
+            if reviews_response.status_code == 200:
+                reviews = reviews_response.json()
+            else:
+                reviews = []
+        except:
+             reviews = []
+
+        st.divider()
+        st.subheader("Reviews")
+
+        if not isinstance(reviews, list) or len(reviews) == 0:
+            st.write("No reviews yet — be the first to add one!")
+        else:
+            for r in reviews:
+                st.markdown(
+                    render_review_box(r['rating'], r['comment']),
+                    unsafe_allow_html=True
+                )
+
+        # -----------------------------------------
+        # ADD REVIEW SECTION
+        # -----------------------------------------
+        st.subheader("Add a Review")
+
+        with st.form("review_form"):
+            rating = st.slider("Rating", 1, 5, 5)
+            comment = st.text_area("Comment")
+            submit = st.form_submit_button("Submit Review")
+
+        if submit:
+            payload = {"rating": rating, "comment": comment}
+            try:
+                res = requests.post(f"{RECIPES_URL}/{recipe_id}/reviews", json=payload)
+                if res.status_code == 200:
+                    st.success("Review added!")
+                    st.rerun()
+                else:
+                    st.error("Failed to submit review")
+            except:
+                 st.error("Connection failed")
 
 # ------------------------
 # PAGE: ADD RECIPE
@@ -443,6 +534,7 @@ elif st.session_state.page == "add":
                             st.stop()
 
                     ingredients_list = [line.strip() for line in ingredients_text.split("\n") if line.strip()]
+                    
                     new_recipe_data = {
                         "title": title,
                         "time_minutes": time_minutes,
@@ -453,7 +545,7 @@ elif st.session_state.page == "add":
                     }
                     
                     try:
-                        response = requests.post(API_URL, json=new_recipe_data)
+                        response = requests.post(RECIPES_URL, json=new_recipe_data)
                         response.raise_for_status()
                         st.success("Recipe Added Successfully!")
                         st.session_state.page = "list"
