@@ -4,6 +4,8 @@ import base64
 from PIL import Image
 import io
 import textwrap
+import os
+
 
 # ------------------------
 # 1. CONFIG & STATE
@@ -13,7 +15,7 @@ if "page" not in st.session_state:
 
 st.set_page_config(page_title="CookWithMe", page_icon="🍽️", layout="wide")
 
-BASE_URL = "http://backend:8000"
+BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 RECIPES_URL = f"{BASE_URL}/recipes"
 
 # ------------------------
