@@ -12,33 +12,24 @@ CookWithMe provides a complete solution for managing cooking recipes.
 
 This platform is designed to present my personal, original recipes. Only the project owner (Yahav) can add, edit, or manage recipes. Future versions will include an authentication layer with two roles.
 
-- **Backend**: REST API using FastAPI, SQLModel, and PostgreSQL (Supabase).
-- **Frontend:** Interactive web interface built with **Streamlit**.
-- **Features:** Image uploads, auto-validation, and responsive recipe cards.
-- **Reliability:** Comprehensive automated testing with **pytest**.
-
 ---
 
 ## ✨ Main Features
 
-### 🧩 API (Backend)
-- Full **CRUD** endpoints under `/recipes`.
-- **Image Handling:** Supports Base64 image storage and processing via **Pillow**.
-- Strong validation using **Pydantic** (enums, length checks).
-- Proper HTTP status codes (201, 404, 422).
+### 🧩 Backend & Database
+- FastAPI + SQLModel REST API
+- Full CRUD for recipes, reviews, and highlights
+- PostgreSQL (Supabase) in production
+- SQLite (in-memory) for tests only
+- Strong validation with Pydantic
 
-### 🖥️ UI (Frontend)
-- **Visual Recipe Book:** View recipes as designed cards with difficulty badges.
-- **Interactive Forms:** Add and edit recipes with real-time feedback.
-- **Image Uploads:** Drag-and-drop support for recipe photos.
-- **Filtering:** Filter recipes by difficulty level.
-
-### 🗄️ Database
-- PostgreSQL (Supabase) used as a centralized production database.
-- In-memory SQLite is used during automated testing (full isolation).
-- Automatic table creation via SQLModel metadata.
-
----
+### 🖥️ Frontend (Streamlit)
+- Visual recipe book with card-based layout
+- Add, edit, and delete recipes
+- Image uploads with preview
+- Star-based reviews
+- Instagram-style cooking highlights
+- Filter recipes by difficulty
 
 ## 🚀 Run Locally
 
@@ -55,10 +46,16 @@ pip install -r requirements.txt
 ### 2. Start the Backend (API)
 Run the server in one terminal:
 ```bash
+export $(cat .env | xargs)
 uvicorn app.main:app --reload
 ```
 
 *API is now running at: `http://127.0.0.1:8000`*
+
+#### Note:  
+When running locally (without Docker), the backend still connects to the same
+PostgreSQL (Supabase) database via the `DATABASE_URL` environment variable.
+This ensures full data persistence across environments.
 
 ### 3. Start the Frontend (UI)
 Open a **new terminal** (with the venv activated) and run:
@@ -72,13 +69,8 @@ streamlit run streamlit_app.py
 
 ### 🌱 Seed Data
 
-The project includes a seed script that populates the database with initial recipes.
+A seed script is included to populate the database with initial recipes.
 
-- **Docker:**  
-  When running via Docker or Docker Compose, the database is initialized automatically and seed data is loaded on first startup.
-
-- **Local Development (non-Docker):**  
-  You may run the seed manually to populate your local database:
 ```bash
 python -m app.seed.seed_data
 ```
@@ -102,34 +94,35 @@ pytest -q
 
 ## 📡 API Endpoints
 
+### 🍲 Recipes
 | Method | Endpoint | Description |
-|--------|----------|-------------|
+|------|--------|------------|
 | POST | `/recipes` | Create recipe (with image support) |
 | GET | `/recipes` | Get all recipes |
-| GET | `/recipes/{id}` | Get by ID |
+| GET | `/recipes/{id}` | Get recipe by ID |
 | PUT | `/recipes/{id}` | Update recipe |
 | DELETE | `/recipes/{id}` | Delete recipe |
 
+### ⭐ Reviews
+| Method | Endpoint | Description |
+|------|--------|------------|
+| GET | `/recipes/{id}/reviews` | Get recipe reviews |
+| POST | `/recipes/{id}/reviews` | Add a review to a recipe |
+
+### 🎬 Highlights
+| Method | Endpoint | Description |
+|------|--------|------------|
+| GET | `/highlights` | Get cooking highlights |
+| POST | `/highlights` | Create highlight |
+| DELETE | `/highlights/{id}` | Delete highlight |
+
 ---
-
-## 🐳 Run with Docker
-
-The project includes Dockerfiles and a docker-compose.yml file
-for a full production-like environment.
-
-**When running in Docker:**
-1. The database is initialized automatically.
-2. **Seed data is loaded automatically** (so you start with a populated DB).
-3. The API starts on port 8000.
 
 ## 🐳 Run with Docker Compose 
 
-This is the recommended way to run the project.
-
-### Prerequisites
-- Docker
-- Docker Compose
-- Supabase project with PostgreSQL database
+The project includes Dockerfiles and docker-compose.yml for a production-like environment.
+The database is initialized automatically and seed data is loaded on first run.
+---
 
 ### Environment Variables
 
@@ -151,28 +144,6 @@ Frontend UI: http://localhost:8501
 
 ---
 
-### Build and Run
-
-1. Build the image:
-```bash
-docker build -t cookwithme .
-```
-
-2. Run the container:
-```bash
-docker run -p 8000:8000 cookwithme
-```
-
-The API will start and automatically load sample data.
-
-3. Run the UI (Locally):
-
-Since the Dockerfile currently runs the API, run the UI locally to connect to it:
-```bash
-streamlit run streamlit_app.py
-```
-
----
 
 ## 👨‍🍳 Personal Note
 

@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
 from sqlmodel import Session, select
 from app.seed.seed_data import run_seed
 from app.database import init_db, get_session
-from app.models import Recipe, RecipeCreate, RecipeUpdate, Review, ReviewCreate
+from app.storage import upload_video
+from app.models import Recipe, RecipeCreate, RecipeUpdate, Review, ReviewCreate, Highlight
 from app.crud import (
     create_recipe,
     get_all_recipes,
@@ -17,6 +18,7 @@ app = FastAPI()
 
 @app.on_event("startup")
 def startup():
+    init_db()     
     run_seed()
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -90,3 +92,38 @@ def add_review(
 def get_reviews(recipe_id: int, session: Session = Depends(get_session)):
     statement = select(Review).where(Review.recipe_id == recipe_id)
     return session.exec(statement).all()
+# --------------------------
+# HIGHLIGHTS
+# --------------------------
+@app.post("/upload-video")
+async def upload_video_endpoint(file: UploadFile = File(...)):
+    video_url = upload_video(await file.read())
+    return {"video_url": video_url}
+
+@app.post("/highlights", response_model=Highlight)
+def create_highlight_endpoint(
+    highlight: Highlight,
+    session: Session = Depends(get_session)
+):
+    session.add(highlight)
+    session.commit()
+    session.refresh(highlight)
+    return highlight
+
+
+@app.get("/highlights", response_model=list[Highlight])
+def get_highlights(session: Session = Depends(get_session)):
+    return session.exec(select(Highlight)).all()
+
+@app.delete("/highlights/{highlight_id}")
+def delete_highlight(
+    highlight_id: int,
+    session: Session = Depends(get_session)
+):
+    highlight = session.get(Highlight, highlight_id)
+    if not highlight:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+
+    session.delete(highlight)
+    session.commit()
+    return {"message": "Highlight deleted"}

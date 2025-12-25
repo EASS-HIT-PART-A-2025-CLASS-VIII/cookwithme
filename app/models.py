@@ -37,7 +37,11 @@ class Recipe(SQLModel, table=True):
 
     reviews: list[Review] = Relationship(back_populates="recipe")
 
-
+class Highlight(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str
+    video_url: str
+    cover_url: Optional[str] = None
 # ---------------------------------------
 # API MODELS (REQUEST / RESPONSE)
 # ---------------------------------------

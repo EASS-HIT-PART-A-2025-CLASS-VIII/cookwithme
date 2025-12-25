@@ -1,5 +1,5 @@
 from sqlmodel import Session, select
-from .models import Recipe, RecipeCreate, RecipeUpdate
+from .models import Recipe, RecipeCreate, RecipeUpdate, Highlight
 from .database import engine
 from fastapi import HTTPException
 
@@ -68,3 +68,12 @@ def delete_recipe(recipe_id: int):
         session.delete(recipe)
         session.commit()
         return recipe
+
+def create_highlight(session, highlight: Highlight):
+    session.add(highlight)
+    session.commit()
+    session.refresh(highlight)
+    return highlight
+
+def get_all_highlights(session):
+    return session.exec(select(Highlight)).all()

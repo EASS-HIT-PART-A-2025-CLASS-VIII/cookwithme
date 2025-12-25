@@ -5,6 +5,7 @@ from PIL import Image
 import io
 import textwrap
 import os
+import streamlit.components.v1 as components
 
 
 # ------------------------
@@ -17,6 +18,8 @@ st.set_page_config(page_title="CookWithMe", page_icon="🍽️", layout="wide")
 
 BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 RECIPES_URL = f"{BASE_URL}/recipes"
+HIGHLIGHTS_URL = f"{BASE_URL}/highlights"
+
 
 # ------------------------
 # 2. CUSTOM CSS
@@ -76,7 +79,10 @@ h2, h3 { color: var(--accent); }
     border-radius: 22px;
     box-shadow: 0 12px 40px rgba(0,0,0,0.06);
     transition: 0.4s ease;
+    margin-bottom: 0 !important;   
+    overflow: hidden;      
 }
+
 .recipe-card:hover {
     transform: translateY(-6px);
     box-shadow: 0 18px 60px rgba(0,0,0,0.12);
@@ -118,6 +124,8 @@ h2, h3 { color: var(--accent); }
     background: black !important;
     color: var(--accent) !important;
 }
+
+
 [data-testid="stSidebar"] .stButton button {
     background-color: rgba(255, 255, 255, 0.2) !important;
     color: white !important;
@@ -127,6 +135,78 @@ h2, h3 { color: var(--accent); }
     background-color: white !important;
     color: var(--accent) !important;
 }
+
+.wrap {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin: 30px 0;
+    font-family: Poppins, sans-serif;
+}
+
+.hl {
+    text-align: center;
+    cursor: pointer;
+}
+
+.ring {
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    background: #d4af37;
+    padding: 2px;
+    box-sizing: border-box;
+}
+
+.inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.9);
+}
+
+.hl:hover .ring {
+    transform: scale(1.05);
+    transition: 0.2s ease;
+}
+
+.title {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #1e1e1e;
+}
+
+.star-row {
+    display: flex;
+    gap: 4px;              /* ⬅️ כאן שולטים על המרחק */
+    align-items: center;
+}
+
+/* ביטול כל מרווח של Streamlit button */
+.star-row .stButton {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* הכפתור עצמו */
+.star-row button {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 42px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-width: unset !important;
+}
+
+/* hover */
+.star-row button:hover {
+    transform: scale(1.15);
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -150,6 +230,24 @@ def render_review_box(rating: int, comment: str) -> str:
     <div style="font-size: 1rem; color: #333;">{comment}</div>
 </div>
 """
+@st.cache_data(ttl=60, show_spinner=False)
+def fetch_recipes():
+    response = requests.get(RECIPES_URL)
+    response.raise_for_status()
+    return response.json() 
+
+@st.cache_data(ttl=120)
+def fetch_reviews(recipe_id):
+    res = requests.get(f"{RECIPES_URL}/{recipe_id}/reviews")
+    if res.status_code == 200:
+        return res.json()
+
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_highlights():
+    res = requests.get(f"{BASE_URL}/highlights")
+    if res.status_code == 200:
+        return res.json()
+    return []
 
 # ------------------------
 # 3. SIDEBAR NAVIGATION
@@ -161,7 +259,10 @@ with st.sidebar:
     st.markdown("---")
     
     if st.button("📖 All Recipes", use_container_width=True):
+        st.query_params.clear()
         st.session_state.page = "list"
+        st.session_state.search_query = "" 
+        st.session_state.filter_choice = "All"  
         st.rerun()
         
     if st.button("➕ Add New Recipe", use_container_width=True):
@@ -176,21 +277,73 @@ with st.sidebar:
 # PAGE: LIST RECIPES
 # ------------------------
 if st.session_state.page == "list":
-    st.markdown(""" <div style="text-align:center; margin: 50px 0 10px 0;">
-    <h1 style=" font-size: 3rem; font-weight: 800; color: #1e1e1e; margin: 30px auto 0;; border-radius: 3px;
-    ">
-    <span>My Recipe Book</span>
-    <div style="height: 4px; width: 170px; background: #c9a24d; margin: 0 auto; border-radius: 4px;
-    "></div>
-</div>
-""", unsafe_allow_html=True)
+    if "selected_highlight" not in st.session_state:
+        st.session_state.selected_highlight = None
+    hl = st.query_params.get("hl")
+    highlights = fetch_highlights()
 
+    # -------- TITLE --------
+    st.markdown(""" 
+    <div style="text-align:center; margin: 50px 0 10px 0;">
+        <h1 style="font-size: 3rem; font-weight: 800; color: #1e1e1e;">
+            My Recipe Book
+        </h1>
+        <div style="height: 4px; width: 170px; background: #c9a24d; margin: 0 auto;"></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # -------- HIGHLIGHTS --------
+    if highlights:
+        cards = ""
+        for h in highlights:
+            cards += f"""<a href="?hl={h['id']}#video" target="_self" style="text-decoration:none;">
+            <div class="hl">
+            <div class="ring">
+            <div class="inner" style="background-image:url('{h.get("cover_url") or "/static/covers/default.jpg"}')"></div>
+            </div>
+            <div class="title">{h['title']}</div>
+            </div>
+            </a>"""
+
+        st.markdown(
+            f'<div class="wrap">{cards}</div>',
+            unsafe_allow_html=True
+        )
+    # -------- VIDEO PLAYER --------
+    if hl:
+        try:
+            hl_id = int(hl)
+            selected = next((h for h in highlights if h["id"] == hl_id), None)
+            if selected:
+                st.markdown('<div id="video"></div>', unsafe_allow_html=True)
+                st.markdown("### ▶️ Video")
+
+                col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
+                with col_center:
+                    st.markdown(
+                        f"""
+                        <video 
+                            src="{selected['video_url']}"
+                            controls
+                            style="
+                                width: 100%;
+                                max-height: 65vh;
+                                border-radius: 18px;
+                                box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+                                background: black;
+                            ">
+                        </video>
+                        """,
+                        unsafe_allow_html=True
+                    )
+        except ValueError:
+            pass
+    # -------- RECIPES --------
     try:
-        response = requests.get(RECIPES_URL)
-        response.raise_for_status()
-        recipes = response.json()
-        
-        col_filter, col_search, col_spacer = st.columns([1, 2, 3])
+        with st.spinner("🍳 Loading recipes..."):
+            recipes = fetch_recipes()
+
+        col_filter, col_search, _ = st.columns([1, 2, 3])
 
         with col_filter:
             filter_choice = st.selectbox(
@@ -199,66 +352,61 @@ if st.session_state.page == "list":
             )
 
         with col_search:
-            search_query = st.text_input(
+            if "search_query" not in st.session_state:
+                st.session_state.search_query = ""
+
+            search_input = st.text_input(
                 "🔎 Search recipe by name",
-                placeholder="Type a word (e.g. cake)"
+                value=st.session_state.search_query
             )
-        st.write("") 
 
-        if not recipes:
-            st.info("No recipes yet. Time to add your first one!")
-        else:
-            cols = st.columns(3)
-            recipes_displayed = 0
-            
-            for recipe in recipes:
+            if st.button("Search"):
+                st.session_state.search_query = search_input
 
-                matches_difficulty = (
-                    filter_choice == "All" or recipe["difficulty"] == filter_choice
+        cols = st.columns(3)
+        recipes_displayed = 0
+
+        for recipe in recipes:
+            if not (
+                (filter_choice == "All" or recipe["difficulty"] == filter_choice)
+                and (
+                    st.session_state.search_query.strip() == ""
+                    or st.session_state.search_query.lower() in recipe["title"].lower()
                 )
+            ):
+                continue
 
-                matches_search = (
-                    search_query.strip() == "" or
-                    search_query.lower() in recipe["title"].lower()
-                )
+            with cols[recipes_displayed % 3]:
+                difficulty = recipe["difficulty"]
 
-                if not (matches_difficulty and matches_search):
-                    continue
-
-                with cols[recipes_displayed % 3]:
-                    difficulty = recipe["difficulty"]
-
-                    st.markdown(f"""
-<div class="recipe-card">
-    <div style="position: relative;">
-        <img src="{recipe['image_url']}" style="width: 100%; height: 200px; object-fit: cover;">
-        <span class="badge bg-{difficulty}">{difficulty}</span>
-    </div>
-    <div style="padding: 15px;">
-        <div class="card-title">{recipe['title']}</div>
-        <div style="color: #777; font-size: 0.9rem; display: flex; align-items: center; gap: 5px;">
-            <span>⏱️</span> {recipe['time_minutes']} minutes
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-                    if st.button(
-                        "View Recipe 👈",
-                        key=f"btn_{recipe['id']}",
-                        use_container_width=True
-                    ):
-                        st.session_state.selected_recipe = recipe
-                        st.session_state.selected_recipe_id = recipe["id"]
-                        st.session_state.edit_mode = False
-                        st.session_state.page = "details"
-                        st.rerun()
-
-                recipes_displayed += 1
-
-            if recipes_displayed == 0:
-                st.warning(f"No recipes found with difficulty: {filter_choice}")
-
+                st.markdown(f"""
+                <div class="recipe-card">
+                    <div style="position: relative;">
+                        <img src="{recipe['image_url']}" loading="lazy"
+                             style="width:100%; height:200px; object-fit:cover;">
+                        <span class="badge bg-{difficulty}">{difficulty}</span>
+                    </div>
+                    <div style="padding:15px;">
+                        <div class="card-title">{recipe['title']}</div>
+                        <div style="color:#777; font-size:0.9rem;">
+                            ⏱️ {recipe['time_minutes']} minutes
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button( 
+                    "View Recipe 👈",
+                    key=f"btn_{recipe['id']}",
+                    use_container_width=True 
+                ): 
+                    st.session_state.selected_recipe = recipe
+                    st.session_state.selected_recipe_id = recipe["id"]
+                    st.session_state.edit_mode = False
+                    st.session_state.page = "details"
+                    st.rerun()
+            recipes_displayed += 1
+        if recipes_displayed == 0:
+            st.warning(f"No recipes found with difficulty: {filter_choice}")
     except requests.exceptions.RequestException:
         st.error("❌ Connection error. Is the server running?")
 
@@ -266,11 +414,10 @@ if st.session_state.page == "list":
 # PAGE: DETAILS
 # ------------------------
 elif st.session_state.page == "details":
-
+    
     # SAFETY CHECK
     if "selected_recipe" not in st.session_state:
         st.session_state.page = "list"
-        st.rerun()
 
     recipe = st.session_state.selected_recipe
 
@@ -438,53 +585,76 @@ elif st.session_state.page == "details":
             if st.button("✏️ Edit", use_container_width=True):
                 st.session_state.edit_mode = True
                 st.rerun()
-        # -----------------------------------------
-        # REVIEWS SECTION
-        # -----------------------------------------
-        # Note: This requires the backend to have the GET /reviews endpoint
-        try:
-            reviews_response = requests.get(f"{RECIPES_URL}/{recipe_id}/reviews")
-            if reviews_response.status_code == 200:
-                reviews = reviews_response.json()
-            else:
-                reviews = []
-        except:
-             reviews = []
 
+        # ------------------------
+        # REVIEW SECTION
+        # ------------------------
         st.divider()
-        st.subheader("Reviews")
+        st.subheader("💬 Reviews")
 
-        if not isinstance(reviews, list) or len(reviews) == 0:
-            st.write("No reviews yet — be the first to add one!")
-        else:
+        # הצגת ביקורות קיימות מהשרת
+        reviews = fetch_reviews(recipe_id)
+        if reviews:
             for r in reviews:
-                st.markdown(
-                    render_review_box(r['rating'], r['comment']),
-                    unsafe_allow_html=True
-                )
+                st.markdown(render_review_box(r['rating'], r['comment']), unsafe_allow_html=True)
+        else:
+            st.info("No reviews yet. Be the first!")
 
-        # -----------------------------------------
-        # ADD REVIEW SECTION
-        # -----------------------------------------
-        st.subheader("Add a Review")
+        # ------------------------
+        # ADD A REVIEW (DESIGNED)
+        # ------------------------
+        st.markdown("---")
+        st.markdown("### Add a Review")
 
-        with st.form("review_form"):
-            rating = st.slider("Rating", 1, 5, 5)
-            comment = st.text_area("Comment")
-            submit = st.form_submit_button("Submit Review")
+        if "rating" not in st.session_state:
+            st.session_state.rating = 0
 
-        if submit:
-            payload = {"rating": rating, "comment": comment}
-            try:
-                res = requests.post(f"{RECIPES_URL}/{recipe_id}/reviews", json=payload)
-                if res.status_code == 200:
-                    st.success("Review added!")
-                    st.rerun()
+        # 5 עמודות צמודות
+        cols = st.columns(5, gap="small")
+
+        for i, col in enumerate(cols):
+            with col:
+                star = "⭐" if st.session_state.rating >= i + 1 else "☆"
+                if st.button(
+                    star,
+                    key=f"star_{i}",
+                    help=f"Rate {i+1}",
+                    use_container_width=True
+                ):
+                    st.session_state.rating = i + 1
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with st.form("review_form", clear_on_submit=True):
+            comment = st.text_area(
+                "Write your review...",
+                placeholder="How was the recipe?",
+                height=120
+            )
+
+            submit = st.form_submit_button("Submit Review", use_container_width=True)
+
+            if submit:
+                if not comment:
+                    st.error("Please add a comment.")
                 else:
-                    st.error("Failed to submit review")
-            except:
-                 st.error("Connection failed")
-
+                    payload = {
+                        "rating": st.session_state.rating,
+                        "comment": comment
+                    }
+                    try:
+                        res = requests.post(
+                            f"{RECIPES_URL}/{recipe_id}/reviews",
+                            json=payload
+                        )
+                        if res.status_code in (200, 201):
+                            st.success("Review added! ⭐")
+                            st.cache_data.clear()
+                            st.session_state.rating = 5
+                            st.rerun()
+                        else:
+                            st.error("Failed to submit review.")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
 # ------------------------
 # PAGE: ADD RECIPE
 # ------------------------
