@@ -47,3 +47,17 @@ def test_create_multiple_recipes(client):
         ids.append(res.json()["id"])
 
     assert len(ids) == 2
+
+def test_create_highlight(client):
+    data = {
+        "title": "Pasta Reel",
+        "video_url": "https://example.com/video.mp4",
+        "cover_url": "https://example.com/cover.jpg"
+    }
+
+    res = client.post("/highlights", json=data)
+    assert res.status_code == 200
+
+    body = res.json()
+    assert body["title"] == data["title"]
+    assert body["video_url"] == data["video_url"]

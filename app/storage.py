@@ -2,14 +2,19 @@ from supabase import create_client
 import os
 import uuid
 
-supabase = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_SERVICE_KEY")
-)
+supabase = None
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 BUCKET = os.getenv("SUPABASE_BUCKET", "videos")
 
-def upload_video(file):
+def upload_video(file: bytes) -> str:
+    if supabase is None:
+        raise RuntimeError("Supabase is not configured")
     filename = f"{uuid.uuid4()}.mp4"
 
     supabase.storage.from_(BUCKET).upload(

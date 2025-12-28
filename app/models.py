@@ -2,6 +2,8 @@ from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from enum import Enum
 from sqlalchemy import Column, JSON
+from pydantic import field_validator
+
 
 
 # ---------------------------------------
@@ -52,7 +54,28 @@ class RecipeBase(SQLModel):
     instructions_md: str
     time_minutes: int
     difficulty: Difficulty
-    image_url: Optional[str] = None
+    image_url: str  # ← לא Optional
+
+    @field_validator("title")
+    @classmethod
+    def title_length(cls, v):
+        if len(v) < 2:
+            raise ValueError("Title too short")
+        return v
+
+    @field_validator("time_minutes")
+    @classmethod
+    def positive_time(cls, v):
+        if v <= 0:
+            raise ValueError("Time must be positive")
+        return v
+
+    @field_validator("image_url")
+    @classmethod
+    def valid_image_url(cls, v):
+        if len(v) < 5:
+            raise ValueError("Image URL too short")
+        return v
 
 
 class RecipeCreate(RecipeBase):

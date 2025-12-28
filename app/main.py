@@ -59,7 +59,7 @@ def delete_recipe_endpoint(recipe_id: int):
     deleted = delete_recipe(recipe_id)
     if not deleted:
         raise HTTPException(404, "Recipe not found")
-    return {"message": "Deleted"}
+    return {"message": "Recipe deleted"}
 
 
 # --------------------------

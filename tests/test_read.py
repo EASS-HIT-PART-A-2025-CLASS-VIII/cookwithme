@@ -53,3 +53,8 @@ def test_get_recipe_not_found(client):
     """Test requesting a non-existing ID"""
     response = client.get("/recipes/999999")
     assert response.status_code == 404
+
+def test_get_highlights(client):
+    res = client.get("/highlights")
+    assert res.status_code == 200
+    assert isinstance(res.json(), list)

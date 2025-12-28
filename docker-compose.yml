@@ -22,3 +22,14 @@ services:
       - API_BASE_URL=http://backend:8000
     depends_on:
       - backend
+
+  backend-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    command: pytest -q
+    environment:
+      DATABASE_URL: sqlite://
+      SEED_DATA: "false"
+    volumes:
+      - .:/app

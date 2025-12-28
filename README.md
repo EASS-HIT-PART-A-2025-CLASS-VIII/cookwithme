@@ -31,6 +31,13 @@ This platform is designed to present my personal, original recipes. Only the pro
 - Instagram-style cooking highlights
 - Filter recipes by difficulty
 
+## ➕ Extra Features
+
+* ⭐ **Star ratings** - Add reviews with 1-5 star ratings for each recipe
+* 🎬 **Instagram-style highlights** - Short cooking videos and stories
+* 🔍 **Smart filtering** - Search recipes by name 
+* 🎯 **Smart filtering** - Difficulty-based filtering 
+
 ## 🚀 Run Locally
 
 ### 1. Setup Environment
@@ -44,7 +51,7 @@ pip install -r requirements.txt
 ```
 
 ### 2. Start the Backend (API)
-Run the server in one terminal:
+Open **Terminal 1** and start the FastAPI backend:
 ```bash
 export $(cat .env | xargs)
 uvicorn app.main:app --reload
@@ -85,8 +92,16 @@ The project includes a comprehensive test suite:
 * ✅ Production DB is never touched
 * ✅ Seed data is NOT loaded during tests
 
-**Run all tests:**
+### Running Tests
+
+#### Option 1: Using Docker (recommended)
 ```bash
+docker compose run --rm backend-test
+```
+
+### Option 2: Local (requires DATABASE_URL)
+```bash
+export DATABASE_URL=sqlite://
 pytest -q
 ```
 
@@ -120,7 +135,7 @@ pytest -q
 
 ## 🐳 Run with Docker Compose 
 
-The project includes Dockerfiles and docker-compose.yml for a production-like environment.
+The project includes Dockerfiles and `docker-compose.yml` for a production-like environment.
 The database is initialized automatically and seed data is loaded on first run.
 ---
 

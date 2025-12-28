@@ -3,8 +3,9 @@ from sqlmodel import SQLModel, create_engine, Session
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# allow tests without env
 if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL is not set")
+    DATABASE_URL = "sqlite://"
 
 engine = create_engine(
     DATABASE_URL,
