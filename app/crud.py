@@ -1,8 +1,8 @@
 from sqlmodel import Session, select
-from .models import Recipe, RecipeCreate, RecipeUpdate, Highlight
+from .models import Recipe, RecipeCreate, RecipeUpdate, Highlight, User
 from .database import engine
 from fastapi import HTTPException
-
+from .security import hash_password, verify_password
 
 def get_all_recipes():
     with Session(engine) as session:
@@ -77,3 +77,25 @@ def create_highlight(session, highlight: Highlight):
 
 def get_all_highlights(session):
     return session.exec(select(Highlight)).all()
+
+def create_user(db, email: str, password: str, role: str = "user"):
+    user = User(
+        email=email,
+        password_hash=hash_password(password),
+        role=role
+    )
+    db.add(user)
+    db.commit()
+    return user
+
+def authenticate_user(db, email: str, password: str):
+    user = get_user_by_email(db, email)
+    if not user:
+        return None
+    if not verify_password(password, user.password_hash):
+        return None
+    return user
+
+def get_user_by_email(db: Session, email: str):
+    statement = select(User).where(User.email == email)
+    return db.exec(statement).first()

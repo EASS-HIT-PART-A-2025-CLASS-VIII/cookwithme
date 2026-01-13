@@ -6,13 +6,25 @@ import io
 import textwrap
 import os
 import streamlit.components.v1 as components
+import jwt
+from urllib.parse import urlencode
 
+
+
+# --- restore token from URL if session_state lost (for href navigation) ---
+qp_token = st.query_params.get("token")
+if "token" not in st.session_state and qp_token:
+    st.session_state.token = qp_token
+    payload = jwt.decode(qp_token, options={"verify_signature": False})
+    st.session_state.role = payload.get("role", "user")
+    st.session_state.is_admin = (st.session_state.role == "admin")
+    st.session_state.page = "list" 
 
 # ------------------------
 # 1. CONFIG & STATE
 # ------------------------
 if "page" not in st.session_state:
-    st.session_state.page = "list"
+    st.session_state.page = "login" if "token" not in st.session_state else "list"
 
 st.set_page_config(page_title="CookWithMe", page_icon="🍽️", layout="wide")
 
@@ -20,6 +32,52 @@ BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 RECIPES_URL = f"{BASE_URL}/recipes"
 HIGHLIGHTS_URL = f"{BASE_URL}/highlights"
 
+# ------------------------
+# security check
+# ------------------------
+
+if st.session_state.get("page") != "login" and "token" not in st.session_state:
+    st.session_state.page = "login"
+    st.rerun()
+
+def auth_headers():
+    return {
+        "Authorization": f"Bearer {st.session_state.token}"
+    }
+
+def add_favorite(recipe_id: int) -> bool:
+    res = requests.post(f"{BASE_URL}/favorites/{recipe_id}", headers=auth_headers())
+    if res.status_code not in (200, 201, 204):
+        st.error(f"Failed to add favorite ({res.status_code})")
+        st.caption(res.text)
+        return False
+    return True
+
+
+def remove_favorite(recipe_id: int) -> bool:
+    res = requests.delete(f"{BASE_URL}/favorites/{recipe_id}", headers=auth_headers())
+    if res.status_code not in (200, 204):
+        st.error(f"Failed to remove favorite ({res.status_code})")
+        st.caption(res.text)
+        return False
+    return True
+
+
+def get_favorites() -> list:
+    res = requests.get(f"{BASE_URL}/favorites", headers=auth_headers())
+
+    if res.status_code != 200:
+        st.warning(f"Favorites not available ({res.status_code})")
+        st.caption(res.text[:500] if res.text else "Empty response")
+        return []
+
+    try:
+        data = res.json()
+        return data if isinstance(data, list) else []
+    except Exception:
+        st.warning("Favorites response is not JSON")
+        st.caption(res.text[:500] if res.text else "Empty response")
+        return []
 
 # ------------------------
 # 2. CUSTOM CSS
@@ -28,189 +86,498 @@ def local_css():
     st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Dancing+Script:wght@600&display=swap');
+
 :root {
-    --main: #1e1e1e;
-    --accent: #c9a24d;
-    --soft-bg: #faf7f2;
-    --card-bg: #ffffff;
+  --main: #1e1e1e;
+  --accent: #c9a24d;
+  --soft-bg: #faf7f2;
+  --card-bg: #ffffff;
 }
-html, body, [class*="css"] {
-    font-family: 'Poppins', sans-serif;
-}
-.stApp {
-    background: var(--soft-bg);
-    background-attachment: fixed;
-}
-[data-testid="stSidebar"] {
-    background: #1e1e1e;
-}
-[data-testid="stSidebar"] * {
-    color: white !important;
-}
-.sidebar-title {
-     font-size: 1.7rem;              
-    font-weight: 700;
-    color: white;
-    -webkit-text-stroke: 0.6px rgba(255,255,255,0.45);
-    text-shadow: 
-        0 2px 4px rgba(0,0,0,0.45), 
-        0 0 12px rgba(201,162,77,0.40);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.signature {
-    line-height: 2.6rem;
-    font-family: 'Dancing Script', cursive !important;
-    font-size: 1.5rem;
-    color: #c9a24d !important;
-    margin-top: -20px;
-    margin-bottom: 20px;
-    margin-left: 5px;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.15);
-    transform: translateX(2px);
-    letter-spacing: 0.5px;
-}
+
+/* ============ BASE ============ */
+html, body, [class*="css"] { font-family: 'Poppins', sans-serif; }
+.stApp { background: var(--soft-bg); background-attachment: fixed; }
+
 h1 { color: #1e1e1e; font-weight: 800; letter-spacing: -1px; }
 h2, h3 { color: var(--accent); }
 
-.recipe-card {
-    background: var(--card-bg);
-    border-radius: 22px;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.06);
-    transition: 0.4s ease;
-    margin-bottom: 0 !important;   
-    overflow: hidden;      
+/* ============ SIDEBAR ============ */
+[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, #151515 0%, #1f1f1f 100%) !important;
+  border-right: 1px solid rgba(255,255,255,0.08) !important;
+}
+[data-testid="stSidebar"] * { color: white !important; }
+[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.10) !important; }
+
+.sidebar-title {
+  font-size: 1.7rem;
+  font-weight: 900;
+  color: white;
+  -webkit-text-stroke: 0.6px rgba(255,255,255,0.45);
+  text-shadow:
+    0 2px 4px rgba(0,0,0,0.45),
+    0 0 12px rgba(201,162,77,0.40);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
 }
 
+.signature {
+  line-height: 2.6rem;
+  font-family: 'Dancing Script', cursive !important;
+  font-size: 1.5rem;
+  color: var(--accent) !important;
+  margin-top: -10px;
+  margin-bottom: 18px;
+  margin-left: 5px;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.15);
+  letter-spacing: 0.5px;
+}
+
+/* Sidebar buttons */
+[data-testid="stSidebar"] .stButton > button{
+  width:100% !important;
+  background: rgba(255,255,255,0.08) !important;
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  border-radius: 14px !important;
+  padding: 0.75rem 0.9rem !important;
+  font-weight: 800 !important;
+  text-align: left !important;
+  box-shadow:none !important;
+  transition: 0.18s ease;
+}
+[data-testid="stSidebar"] .stButton > button:hover{
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.14) !important;
+  border-color: rgba(201,162,77,0.70) !important;
+  color: white !important;
+}
+
+/* ================= CTA BUTTONS ONLY (Main Area) ================= */
+/* תופס רק כפתורים ספציפיים לפי הטקסט שלהם (aria-label) */
+
+section.main button[aria-label^="View Recipe"]{
+  background: var(--accent) !important;
+  color: #111 !important;
+  border-radius: 40px !important;
+  font-weight: 800 !important;
+  border: none !important;
+  box-shadow: 0 10px 25px rgba(201,162,77,0.25) !important;
+}
+section.main button[aria-label^="View Recipe"]:hover{
+  background: #111 !important;
+  color: var(--accent) !important;
+}
+
+/* עוד CTA שאת כנראה רוצה בעיצוב זהב */
+section.main button[aria-label="Submit Review"],
+section.main button[aria-label="Save Recipe 🎉"],
+section.main button[aria-label="✏️ Edit"],
+section.main button[aria-label="🗑️ Delete"],
+section.main button[aria-label="⬅️ Back"]{
+  background: var(--accent) !important;
+  color: #111 !important;
+  border-radius: 40px !important;
+  font-weight: 800 !important;
+  border: none !important;
+  box-shadow: 0 10px 25px rgba(201,162,77,0.25) !important;
+}
+section.main button[aria-label="Submit Review"]:hover,
+section.main button[aria-label="Save Recipe 🎉"]:hover,
+section.main button[aria-label="✏️ Edit"]:hover,
+section.main button[aria-label="🗑️ Delete"]:hover,
+section.main button[aria-label="⬅️ Back"]:hover{
+  background: #111 !important;
+  color: var(--accent) !important;
+}
+
+/* ============ SIDEBAR BUTTONS OVERRIDE ============ */
+[data-testid="stSidebar"] div[data-testid="stButton"] > button{
+  width:100% !important;
+  background: rgba(255,255,255,0.08) !important;
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  border-radius: 14px !important;
+  padding: 0.75rem 0.9rem !important;
+  font-weight: 800 !important;
+  text-align: left !important;
+  box-shadow:none !important;
+  transition: 0.18s ease;
+}
+
+[data-testid="stSidebar"] div[data-testid="stButton"] > button:hover{
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.14) !important;
+  border-color: rgba(201,162,77,0.70) !important;
+}
+
+/* ============ RECIPE CARDS ============ */
+.recipe-card {
+  background: var(--card-bg);
+  border-radius: 22px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.06);
+  transition: 0.35s ease;
+  margin-bottom: 0 !important;
+  overflow: hidden;
+}
 .recipe-card:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 18px 60px rgba(0,0,0,0.12);
+  transform: translateY(-6px);
+  box-shadow: 0 18px 60px rgba(0,0,0,0.12);
 }
 .card-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #333;
-    margin-bottom: 5px;
-    height: 50px;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 5px;
+  height: 50px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
+
 .badge {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    color: white;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.75rem;
-    font-weight: bold;
-    letter-spacing: 0.5px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 .bg-Easy { background: #3a7d44; }
 .bg-Medium { background: #b88940; }
 .bg-Hard { background: #7a2e2e; }
-.stButton button {
-    background: var(--accent);
-    color: black !important;
-    border-radius: 40px;
-    font-weight: 700;
-    box-shadow: 0 10px 25px rgba(201, 162, 77, 0.3);
-}
-.stButton button:hover {
-    background: black !important;
-    color: var(--accent) !important;
+
+/* ===== FORCE GOLD BUTTONS (Main only) ===== */
+section[data-testid="stMain"] div.stButton > button,
+section[data-testid="stMain"] div[data-testid="stButton"] > button,
+section[data-testid="stMain"] button[data-testid^="baseButton"]{
+  background-color: #D4AF37 !important;
+  background-image: linear-gradient(135deg, #D4AF37, #F5D76E) !important;
+  color: #2b2b2b !important;
+  border: none !important;
+  border-radius: 14px !important;
+  font-weight: 700 !important;
+  padding: 0.75em 1.5em !important;
+  box-shadow: 0 4px 10px rgba(212,175,55,0.35) !important;
+  transition: all 0.2s ease-in-out !important;
 }
 
-
-[data-testid="stSidebar"] .stButton button {
-    background-color: rgba(255, 255, 255, 0.2) !important;
-    color: white !important;
-    border: 1px solid white !important;
-}
-[data-testid="stSidebar"] .stButton button:hover {
-    background-color: white !important;
-    color: var(--accent) !important;
+section[data-testid="stMain"] div.stButton > button:hover,
+section[data-testid="stMain"] div[data-testid="stButton"] > button:hover,
+section[data-testid="stMain"] button[data-testid^="baseButton"]:hover{
+  background-color: #F5D76E !important;
+  background-image: linear-gradient(135deg, #F5D76E, #D4AF37) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 14px rgba(212,175,55,0.5) !important;
 }
 
-.wrap {
-    display: flex;
-    justify-content: center;
-    gap: 30px;
-    margin: 30px 0;
-    font-family: Poppins, sans-serif;
+                /* ===== EXCEPT LOGIN MODE BUTTONS ===== */
+.stApp.login-mode section[data-testid="stMain"] div[data-testid="stFormSubmitButton"] > button{
+  background: var(--accent) !important;
+  background-image: none !important;
+  color: #111 !important;
+  border-radius: 16px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 14px 30px rgba(201,162,77,0.25) !important;
 }
 
-.hl {
-    text-align: center;
-    cursor: pointer;
+.stApp.login-mode section[data-testid="stMain"] div[data-testid="stFormSubmitButton"] > button:hover{
+  background: #111 !important;
+  background-image: none !important;
+  color: var(--accent) !important;
+}
+/* ============ HIGHLIGHTS ============ */
+.hl-wrap{
+  cursor: pointer;
+  position: relative;
+  z-index: 9999 !important;     /* מעל הכל */
+  pointer-events: auto !important;
+}
+
+.hl-wrap *{
+  pointer-events: none !important;
+}
+
+/* הכפתור של היילייט יושב מעל העיגול */
+.hl-wrap div[data-testid="stButton"]{
+  position: absolute !important;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 92px !important;
+  height: 92px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  z-index: 100 !important;
 }
 
 .ring {
-    width: 92px;
-    height: 92px;
-    border-radius: 50%;
-    background: #d4af37;
-    padding: 2px;
-    box-sizing: border-box;
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: #d4af37;
+  padding: 2px;
+  box-sizing: border-box;
+  transition: 0.2s ease;
 }
 
 .inner {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background-size: cover;
-    background-position: center;
-    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.9);
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.9);
 }
 
-.hl:hover .ring {
-    transform: scale(1.05);
-    transition: 0.2s ease;
-}
+.hl-visual{ text-align:center; }
+.hl-visual:hover .ring { transform: scale(1.05); }
 
 .title {
-    margin-top: 8px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #1e1e1e;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1e1e1e;
+}
+                
+.hl-link{
+  text-decoration: none !important;
+  color: inherit !important;
+  display: inline-block;
+}
+.hl-link:visited{ color: inherit !important; }
+
+/* ============ STARS (RATING) ============ */
+.star-row{
+  display:flex;
+  gap:4px;
+  align-items:center;
 }
 
-.star-row {
-    display: flex;
-    gap: 4px;              /* ⬅️ כאן שולטים על המרחק */
-    align-items: center;
+/* ביטול רווחים מסביב לסטארים */
+.star-row .stButton,
+.star-row div[data-testid="stButton"]{
+  margin:0 !important;
+  padding:0 !important;
 }
 
-/* ביטול כל מרווח של Streamlit button */
-.star-row .stButton {
-    margin: 0 !important;
-    padding: 0 !important;
+/* הכפתור של הסטארים — שקוף + גדול */
+.star-row button,
+.star-row div[data-testid="stButton"] > button{
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 42px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-width: unset !important;
+  line-height: 1 !important;
+}
+.star-row button:hover,
+.star-row div[data-testid="stButton"] > button:hover{
+  transform: scale(1.15);
 }
 
-/* הכפתור עצמו */
-.star-row button {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    font-size: 42px !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    min-width: unset !important;
+/* אם את בונה את הסטארים עם st.columns בלי wrapper star-row,
+   זה עדיין יעזור לצמצם את הריווח */
+section.main div[data-testid="stButton"] > button[key^="star_"]{
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  font-size: 42px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
 }
 
-/* hover */
-.star-row button:hover {
-    transform: scale(1.15);
+/* ============ LOGIN MODE (CARD CENTER) ============ */
+/* לא מסתיר סיידבר — רק ממרכז את התוכן ומלביש כרטיס */
+.stApp.login-mode section.main > div{
+  display:flex;
+  justify-content:center;
 }
+.stApp.login-mode .block-container{
+  max-width: 520px !important;
+  padding-top: 10vh !important;
+  padding-bottom: 6vh !important;
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 26px;
+  box-shadow: 0 22px 60px rgba(0,0,0,0.12);
+  backdrop-filter: blur(10px);
+}
+
+/* inputs */
+.stApp.login-mode div[data-testid="stTextInput"] input{
+  border-radius: 14px !important;
+  border: 1px solid rgba(0,0,0,0.12) !important;
+  padding: 0.85rem 0.9rem !important;
+  background: rgba(255,255,255,0.95) !important;
+}
+.stApp.login-mode div[data-testid="stTextInput"] input:focus{
+  border-color: rgba(201,162,77,0.75) !important;
+  box-shadow: 0 0 0 4px rgba(201,162,77,0.22) !important;
+  outline: none !important;
+}
+
+/* login submit button */
+.stApp.login-mode div[data-testid="stFormSubmitButton"] > button{
+  width: 100% !important;
+  background: var(--accent) !important;
+  color: #111 !important;
+  border-radius: 16px !important;
+  border: none !important;
+  font-weight: 900 !important;
+  padding: 0.9rem 1rem !important;
+  box-shadow: 0 14px 30px rgba(201,162,77,0.25) !important;
+}
+.stApp.login-mode div[data-testid="stFormSubmitButton"] > button:hover{
+  background: #111 !important;
+  color: var(--accent) !important;
+}
+
+/* login page regular buttons (like "Create account") */
+.stApp.login-mode section.main div[data-testid="stButton"] > button{
+  width: 100% !important;
+  border-radius: 16px !important;
+  font-weight: 800 !important;
+  background: transparent !important;
+  border: 1px solid rgba(0,0,0,0.18) !important;
+  color: #111 !important;
+  box-shadow: none !important;
+}
+.stApp.login-mode section.main div[data-testid="stButton"] > button:hover{
+  border-color: rgba(201,162,77,0.9) !important;
+  color: rgba(201,162,77,1) !important;
+}
+/* ================= CTA WRAPPERS  ================= */
+.cta-wrap div[data-testid="stButton"] > button{
+  background: var(--accent) !important;
+  color: #111 !important;
+  border-radius: 40px !important;
+  font-weight: 800 !important;
+  border: none !important;
+  box-shadow: 0 10px 25px rgba(201,162,77,0.25) !important;
+  width: 100% !important;
+}
+.cta-wrap div[data-testid="stButton"] > button:hover{
+  background: #111 !important;
+  color: var(--accent) !important;
+}
+
+.cta-soft div[data-testid="stButton"] > button{
+  background: transparent !important;
+  border: 1px solid rgba(0,0,0,0.18) !important;
+  color: #111 !important;
+  border-radius: 16px !important;
+  font-weight: 800 !important;
+  width: 100% !important;
+  box-shadow: none !important;
+}
+.cta-soft div[data-testid="stButton"] > button:hover{
+  border-color: rgba(201,162,77,0.9) !important;
+  color: rgba(201,162,77,1) !important;
+}
+/* ================= FAVORITES ================= */
+      .fav-badge{
+  position:absolute;
+  top:12px;
+  left:12px;  /* אם תרצי בימין: החליפי ל right:12px ומחקי left */
+  z-index:70;
+}
+.fav-pill{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:44px;
+  height:32px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.22);
+  backdrop-filter: blur(6px);
+  cursor:pointer;
+  user-select:none;
+  font-size:18px;
+  line-height:1;
+}
+.fav-pill:hover{ background: rgba(255,255,255,0.32); }
+
+.recipe-wrap{ position: relative; }
+
+.heart-slot{
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 90;
+}
+
+/* לב — שלא יקבל את עיצוב הזהב של כל הכפתורים */
+.heart-slot div[data-testid="stButton"] > button{
+  all: unset !important;
+  cursor: pointer !important;
+  font-size: 22px !important;
+  line-height: 1 !important;
+  padding: 6px 10px !important;
+  border-radius: 999px !important;
+  background: rgba(255,255,255,0.22) !important;
+  border: 1px solid rgba(255,255,255,0.55) !important;
+  backdrop-filter: blur(6px) !important;
+}
+            .fav-badge{
+  position:absolute;
+  top:12px;
+  left:12px;
+  z-index:80;
+}
+
+.fav-link{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:42px;
+  height:34px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.22);
+  backdrop-filter: blur(6px);
+  text-decoration:none !important;
+  font-size:22px;
+  line-height:1;
+}
+.fav-link:hover{ background: rgba(255,255,255,0.32); }
 
 </style>
 """, unsafe_allow_html=True)
 
 local_css()
+
+def set_login_mode(enabled: bool):
+    st.markdown(
+        f"""
+        <script>
+          (function() {{
+            const app = window.parent.document.querySelector('.stApp');
+            if (!app) return;
+            app.classList.toggle('login-mode', {str(enabled).lower()});
+          }})();
+        </script>
+        """,
+        unsafe_allow_html=True
+    )
+def can_delete_review(r: dict) -> bool:
+    my_id = st.session_state.get("user_id")
+    return (
+        st.session_state.get("role") == "admin"
+        or (my_id is not None and r.get("user_id") == my_id)
+    )
+
+def delete_review(review_id: int):
+    return requests.delete(f"{BASE_URL}/reviews/{review_id}", headers=auth_headers())
 
 def render_review_box(rating: int, comment: str) -> str:
     full_star = "⭐"
@@ -232,19 +599,24 @@ def render_review_box(rating: int, comment: str) -> str:
 """
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_recipes():
-    response = requests.get(RECIPES_URL)
+    response = requests.get(
+    RECIPES_URL,
+    headers=auth_headers()
+    )
     response.raise_for_status()
     return response.json() 
 
 @st.cache_data(ttl=120)
 def fetch_reviews(recipe_id):
-    res = requests.get(f"{RECIPES_URL}/{recipe_id}/reviews")
+    res = requests.get(f"{RECIPES_URL}/{recipe_id}/reviews",
+    headers=auth_headers())
     if res.status_code == 200:
         return res.json()
 
 @st.cache_data(ttl=120, show_spinner=False)
 def fetch_highlights():
-    res = requests.get(f"{BASE_URL}/highlights")
+    res = requests.get(f"{BASE_URL}/highlights",
+    headers=auth_headers())
     if res.status_code == 200:
         return res.json()
     return []
@@ -257,31 +629,228 @@ with st.sidebar:
     st.markdown('<div class="signature">by Yahav</div>', unsafe_allow_html=True)
     st.write("Welcome to my digital kitchen.")
     st.markdown("---")
+    if "token" in st.session_state:
+        if st.button("📖 All Recipes", use_container_width=True):
+            st.query_params.clear()
+            st.query_params["token"] = st.session_state.token
+            st.session_state.page = "list"
+            st.session_state.search_query = "" 
+            st.session_state.filter_choice = "All"  
+            st.rerun()
+
+        if st.session_state.get("role") == "admin":
+            if st.button("➕ Add New Recipe", use_container_width=True):
+                st.session_state.page = "add"
+                st.rerun()
+
+        if st.button("❤️ Favorites", use_container_width=True):
+            st.session_state.page = "favorites"
+            st.rerun()
     
-    if st.button("📖 All Recipes", use_container_width=True):
-        st.query_params.clear()
-        st.session_state.page = "list"
-        st.session_state.search_query = "" 
-        st.session_state.filter_choice = "All"  
-        st.rerun()
-        
-    if st.button("➕ Add New Recipe", use_container_width=True):
-        st.session_state.page = "add"
-        st.rerun()
-    
+
+        if st.button("🚪 Logout", use_container_width=True):
+            st.session_state.clear()
+            st.query_params.clear()
+            st.session_state.page = "login"
+            st.rerun()
+
     st.markdown("---")
     st.caption("Developed with ❤️ using Streamlit")
 
 
+set_login_mode(st.session_state.get("page") == "login")
+
+# ------------------------
+# PAGE: LOGIN
+# ------------------------
+if st.session_state.page == "login":
+    set_login_mode(True)
+
+    st.markdown('<h1 class="login-title">🍽️ CookWithMe</h1>', unsafe_allow_html=True)
+    st.markdown('<div class="login-subtitle">Sign in to your digital kitchen</div>', unsafe_allow_html=True)
+    st.markdown('<div class="login-accent"></div>', unsafe_allow_html=True)
+
+    # ---- ONE FORM ONLY ----
+    with st.form("login_form"):
+        email = st.text_input("Email", placeholder="name@example.com")
+        password = st.text_input("Password", type="password", placeholder="••••••••")
+
+        st.markdown('<div class="cta-wrap">', unsafe_allow_html=True)
+        submit = st.form_submit_button("Login", use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ---- handle submit OUTSIDE the form ----
+    if submit:
+        if not email.strip() or not password:
+            st.error("Please enter Email and Password")
+        else:
+            try:
+                res = requests.post(
+                    f"{BASE_URL}/auth/login",
+                    json={"email": email.strip(), "password": password},
+                    timeout=10
+                )
+
+                if res.status_code == 200:
+                    data = res.json()
+                    token = data.get("access_token")
+                    if not token:
+                        st.error("Login succeeded but there is no token")
+                    else:
+                        st.session_state.token = token
+                        payload = jwt.decode(token, options={"verify_signature": False})
+                        st.session_state.role = payload.get("role", "user")
+                        st.session_state.is_admin = (st.session_state.role == "admin")
+                        st.cache_data.clear()
+                        st.session_state.page = "list"
+                        st.query_params.clear()
+                        st.query_params["token"] = token
+                        st.rerun()
+
+                elif res.status_code == 401:
+                    st.error("Email or Password incorrect")
+
+                elif res.status_code == 422:
+                    st.error("Check your Email and Password")
+                    st.caption(res.text)
+
+                elif res.status_code == 404:
+                    st.error("Endpoint problem")
+                    st.caption(f"BASE_URL = {BASE_URL}")
+
+                else:
+                    st.error(f"Server error ({res.status_code}): {res.text}")
+
+            except requests.exceptions.ConnectionError:
+                st.error("Backend not reachable. Is it running on 127.0.0.1:8000?")
+            except requests.exceptions.Timeout:
+                st.error("Request timed out")
+            except Exception as e:
+                st.error(f"Unexpected error: {e}")
+
+    # ---- Create account (ALWAYS visible) ----
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="cta-soft">', unsafe_allow_html=True)
+    create = st.button("📝 Create account", use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    if create:
+        st.session_state.page = "signup"
+        st.rerun()
+# ------------------------
+# PAGE: SIGNUP
+# ------------------------
+if st.session_state.page == "signup":
+    st.markdown("<h1 style='text-align:center;'>🍽️ CookWithMe</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align:center;'>Create account</h3>", unsafe_allow_html=True)
+
+    with st.form("signup_form"):
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        confirm_password = st.text_input("Confirm Password", type="password")
+        submit = st.form_submit_button("Sign up")
+
+    if submit:
+        email_clean = email.strip()
+
+        # ---- basic validations ----
+        if not email_clean or not password or not confirm_password:
+            st.error("Please fill Email + Password + Confirm Password")
+        elif password != confirm_password:
+            st.error("Passwords do not match")
+        elif len(password) < 6:
+            st.error("Password must be at least 6 characters")
+        else:
+            try:
+                res = requests.post(
+                    f"{BASE_URL}/auth/register",
+                    json={"email": email_clean, "password": password},
+                    timeout=10
+                )
+
+                if res.status_code == 201:
+                    st.success("Account created ✅ You can log in now.")
+                    # optional: auto go to login
+                    st.session_state.page = "login"
+                    st.rerun()
+
+                elif res.status_code == 409:
+                    # This is the "email already registered" case
+                    detail = ""
+                    try:
+                        detail = res.json().get("detail", "")
+                    except Exception:
+                        pass
+                    st.error(detail or "This email is already registered. Try logging in.")
+
+                elif res.status_code == 422:
+                    st.error("Invalid input (check email format / password rules)")
+                    try:
+                        st.caption(res.json())
+                    except Exception:
+                        st.caption(res.text)
+
+                elif res.status_code == 404:
+                    st.error("Endpoint problem")
+                    st.caption(f"BASE_URL = {BASE_URL}")
+
+                else:
+                    try:
+                        msg = res.json().get("detail", res.text)
+                    except Exception:
+                        msg = res.text
+                    st.error(f"Server error ({res.status_code}): {msg}")
+
+            except requests.exceptions.ConnectionError:
+                st.error("Cannot reach server. Check that backend is running on 127.0.0.1:8000")
+            except requests.exceptions.Timeout:
+                st.error("Request timed out (server too slow / not responding)")
+            except Exception as e:
+                st.error(f"Unexpected error: {e}")
+
+    st.markdown("---")
+    if st.button("🔐 Back to Login"):
+        st.session_state.page = "login"
+        st.rerun()
 # ------------------------
 # PAGE: LIST RECIPES
 # ------------------------
 if st.session_state.page == "list":
-    if "selected_highlight" not in st.session_state:
-        st.session_state.selected_highlight = None
-    hl = st.query_params.get("hl")
-    highlights = fetch_highlights()
+    if "token" in st.session_state:
+        st.query_params["token"] = st.session_state.token
+    hl_q = st.query_params.get("hl")
+    if hl_q:
+        try:
+            st.session_state.selected_highlight_id = int(hl_q)
+        except Exception:
+            st.session_state.selected_highlight_id = None
+    favorites = get_favorites()
+    favorite_ids = {r["id"] for r in favorites}
+    if "selected_highlight_id" not in st.session_state:
+        st.session_state.selected_highlight_id = None
+    hl_id = st.session_state.selected_highlight_id
+    # --- handle favorite toggle from URL ---
+    fav_q = st.query_params.get("fav")
+    if fav_q:
+        try:
+            fav_id = int(fav_q)
+            favorites_now = get_favorites()
+            fav_ids_now = {r["id"] for r in favorites_now}
 
+            if fav_id in fav_ids_now:
+                remove_favorite(fav_id)
+            else:
+                add_favorite(fav_id)
+
+            st.cache_data.clear()
+
+            # remove fav param so it won't repeat on refresh
+            st.query_params.pop("fav", None)
+            st.rerun()
+        except Exception:
+            st.query_params.pop("fav", None)
+        highlights = fetch_highlights()
     # -------- TITLE --------
     st.markdown(""" 
     <div style="text-align:center; margin: 50px 0 10px 0;">
@@ -291,58 +860,76 @@ if st.session_state.page == "list":
         <div style="height: 4px; width: 170px; background: #c9a24d; margin: 0 auto;"></div>
     </div>
     """, unsafe_allow_html=True)
-
     # -------- HIGHLIGHTS --------
+    highlights = fetch_highlights()
     if highlights:
-        cards = ""
-        for h in highlights:
-            cards += f"""<a href="?hl={h['id']}#video" target="_self" style="text-decoration:none;">
-            <div class="hl">
-            <div class="ring">
-            <div class="inner" style="background-image:url('{h.get("cover_url") or "/static/covers/default.jpg"}')"></div>
-            </div>
-            <div class="title">{h['title']}</div>
-            </div>
-            </a>"""
+        cols = st.columns(min(len(highlights), 6), gap="large")
+
+        tok = st.session_state.get("token", "")
+
+        for i, h in enumerate(highlights):
+            with cols[i % len(cols)]:
+                cover = h.get("cover_url") or "/static/covers/default.jpg"
+                hid = int(h["id"])
+                title = h["title"]
+
+                # toggle: אם לוחצים על אותו highlight שכבר פתוח -> סוגרים
+                if hl_id == hid:
+                    qs = urlencode({"token": tok})
+                else:
+                    qs = urlencode({"token": tok, "hl": hid})
+
+                st.markdown(
+                    f"""
+                    <a class="hl-link" href="?{qs}" target="_self">
+                        <div class="hl-wrap">
+                            <div class="hl-visual">
+                                <div class="ring">
+                                    <div class="inner" style="background-image:url('{cover}')"></div>
+                                </div>
+                                <div class="title">{title}</div>
+                            </div>
+                        </div>
+                    </a>
+                    """,
+                    unsafe_allow_html=True
+                )
+    # -------- VIDEO PLAYER --------
+    if hl_id is not None:
+        close_qs = urlencode({"token": st.session_state.get("token","")})
 
         st.markdown(
-            f'<div class="wrap">{cards}</div>',
+            f"""
+            <div style="display:flex; justify-content:center; margin: 10px 0 18px 0;">
+                <a href="?{close_qs}" target="_self"
+                style="text-decoration:none; padding:10px 16px; border-radius:999px;
+                        background: rgba(0,0,0,0.08); color:#111; font-weight:700;">
+                    ✖ Close highlight
+                </a>
+            </div>
+            """,
             unsafe_allow_html=True
         )
-    # -------- VIDEO PLAYER --------
-    if hl:
-        try:
-            hl_id = int(hl)
-            selected = next((h for h in highlights if h["id"] == hl_id), None)
-            if selected:
-                st.markdown('<div id="video"></div>', unsafe_allow_html=True)
-                st.markdown("### ▶️ Video")
 
-                col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
-                with col_center:
-                    st.markdown(
-                        f"""
-                        <video 
-                            src="{selected['video_url']}"
-                            controls
-                            style="
-                                width: 100%;
-                                max-height: 65vh;
-                                border-radius: 18px;
-                                box-shadow: 0 20px 50px rgba(0,0,0,0.25);
-                                background: black;
-                            ">
-                        </video>
-                        """,
-                        unsafe_allow_html=True
-                    )
-        except ValueError:
-            pass
+        selected = next((h for h in highlights if int(h["id"]) == int(hl_id)), None)
+        if selected:
+            col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
+            with col_center:
+                st.markdown(
+                    f"""
+                    <video src="{selected['video_url']}" controls
+                        style="width:100%; max-height:65vh; border-radius:18px;
+                            box-shadow:0 20px 50px rgba(0,0,0,0.25); background:black;">
+                    </video>
+                    """,
+                    unsafe_allow_html=True
+                )
     # -------- RECIPES --------
     try:
         with st.spinner("🍳 Loading recipes..."):
             recipes = fetch_recipes()
-
+        favorites = get_favorites()
+        favorite_ids = {r["id"] for r in favorites}
         col_filter, col_search, _ = st.columns([1, 2, 3])
 
         with col_filter:
@@ -375,41 +962,103 @@ if st.session_state.page == "list":
                 )
             ):
                 continue
-
+            
             with cols[recipes_displayed % 3]:
                 difficulty = recipe["difficulty"]
+                is_fav = recipe["id"] in favorite_ids
+                tok = st.session_state.get("token", "")
+                heart = "❤️" if is_fav else "🤍"
 
-                st.markdown(f"""
-                <div class="recipe-card">
+                card_html = f"""<div class="recipe-card">
                     <div style="position: relative;">
                         <img src="{recipe['image_url']}" loading="lazy"
-                             style="width:100%; height:200px; object-fit:cover;">
+                            style="width:100%; height:200px; object-fit:cover;">
                         <span class="badge bg-{difficulty}">{difficulty}</span>
-                    </div>
-                    <div style="padding:15px;">
-                        <div class="card-title">{recipe['title']}</div>
-                        <div style="color:#777; font-size:0.9rem;">
-                            ⏱️ {recipe['time_minutes']} minutes
+                        <div class="fav-badge">
+                            <a class="fav-link" href="?token={tok}&fav={recipe['id']}" target="_self">{heart}</a>
                         </div>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
-                if st.button( 
-                    "View Recipe 👈",
-                    key=f"btn_{recipe['id']}",
-                    use_container_width=True 
-                ): 
+                    <div style="padding:15px;">
+                        <div style="color:#777; font-size:0.9rem;">
+                            ⏱️ {recipe['time_minutes']} minutes • ⭐ {recipe.get('avg_rating', 0)} ({recipe.get('reviews_count', 0)})
+                        </div>
+                </div>"""
+
+                st.markdown(card_html, unsafe_allow_html=True)
+
+                if st.button("View Recipe 👈", key=f"btn_{recipe['id']}", use_container_width=True):
                     st.session_state.selected_recipe = recipe
                     st.session_state.selected_recipe_id = recipe["id"]
                     st.session_state.edit_mode = False
                     st.session_state.page = "details"
                     st.rerun()
             recipes_displayed += 1
+
         if recipes_displayed == 0:
             st.warning(f"No recipes found with difficulty: {filter_choice}")
+
     except requests.exceptions.RequestException:
         st.error("❌ Connection error. Is the server running?")
 
+# ------------------------
+# PAGE: FAVORITES
+# ------------------------
+elif st.session_state.page == "favorites":
+    if st.button("⬅️ Back"):
+        st.session_state.page = "list"
+        st.rerun()
+
+    st.markdown("""
+    <div style="text-align:center; margin: 35px 0 10px 0;">
+        <h1 style="font-size: 2.6rem; font-weight: 800; color: #1e1e1e;">
+             My Favorites❤️
+        </h1>
+        <div style="height: 4px; width: 170px; background: #c9a24d; margin: 0 auto;"></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    try:
+        favorites = get_favorites()  
+        if not favorites:
+            st.info("No favorites yet. Tap 🤍 on a recipe to save it.")
+            st.stop()
+
+        cols = st.columns(3)
+        displayed = 0
+
+        for recipe in favorites:
+            with cols[displayed % 3]:
+                difficulty = recipe.get("difficulty", "Easy")
+                tok = st.session_state.get("token", "")
+
+                card_html = f"""<div class="recipe-card">
+                    <div style="position: relative;">
+                        <img src="{recipe['image_url']}" loading="lazy"
+                            style="width:100%; height:200px; object-fit:cover;">
+                        <span class="badge bg-{difficulty}">{difficulty}</span>
+                        <div class="fav-badge">
+                            <a class="fav-link" href="?token={tok}&fav={recipe['id']}" target="_self">❤️</a>
+                        </div>
+                    </div>
+                    <div style="padding:15px;">
+                        <div class="card-title">{recipe['title']}</div>
+                        <div style="color:#777; font-size:0.9rem;">⏱️ {recipe['time_minutes']} minutes</div>
+                    </div>
+                </div>"""
+
+                st.markdown(card_html, unsafe_allow_html=True)
+
+                if st.button("View Recipe 👈", key=f"btn_{recipe['id']}", use_container_width=True):
+                    st.session_state.selected_recipe = recipe
+                    st.session_state.selected_recipe_id = recipe["id"]
+                    st.session_state.edit_mode = False
+                    st.session_state.page = "details"
+                    st.rerun()
+
+            displayed += 1
+
+    except Exception as e:
+        st.error(f"Failed to load favorites: {e}")
 # ------------------------
 # PAGE: DETAILS
 # ------------------------
@@ -499,7 +1148,7 @@ elif st.session_state.page == "details":
                 }
 
                 try:
-                    response = requests.put(f"{RECIPES_URL}/{st.session_state.selected_recipe_id}", json=updated_data)
+                    response = requests.put(f"{RECIPES_URL}/{st.session_state.selected_recipe_id}", json=updated_data,headers=auth_headers())
 
                     response.raise_for_status()
 
@@ -516,7 +1165,7 @@ elif st.session_state.page == "details":
     # -------------------------------------------------
     else:
         recipe_id = st.session_state.selected_recipe_id
-        if st.button("⬅️ Back"):
+        if st.button("⬅️ Back to recipes list"):
             st.session_state.page = "list"
             st.rerun()
 
@@ -569,22 +1218,22 @@ elif st.session_state.page == "details":
                 st.markdown(recipe.get('instructions_md', 'No instructions.'))
 
         st.divider()
+        if st.session_state.get("role") == "admin":
+            col_del, col_upd = st.columns([1, 4])
+            with col_del:
+                if st.button("🗑️ Delete", type="primary", use_container_width=True):
+                    try:
+                        requests.delete(f"{RECIPES_URL}/{st.session_state.selected_recipe_id}",headers=auth_headers())
+                        st.success("Deleted!")
+                        st.session_state.page = "list"
+                        st.rerun()
+                    except:
+                        st.error("Delete failed")
 
-        col_del, col_upd = st.columns([1, 4])
-        with col_del:
-            if st.button("🗑️ Delete", type="primary", use_container_width=True):
-                try:
-                    requests.delete(f"{RECIPES_URL}/{st.session_state.selected_recipe_id}")
-                    st.success("Deleted!")
-                    st.session_state.page = "list"
+            with col_upd:
+                if st.button("✏️ Edit", use_container_width=True):
+                    st.session_state.edit_mode = True
                     st.rerun()
-                except:
-                    st.error("Delete failed")
-
-        with col_upd:
-            if st.button("✏️ Edit", use_container_width=True):
-                st.session_state.edit_mode = True
-                st.rerun()
 
         # ------------------------
         # REVIEW SECTION
@@ -592,13 +1241,32 @@ elif st.session_state.page == "details":
         st.divider()
         st.subheader("💬 Reviews")
 
-        # הצגת ביקורות קיימות מהשרת
         reviews = fetch_reviews(recipe_id)
+
         if reviews:
             for r in reviews:
-                st.markdown(render_review_box(r['rating'], r['comment']), unsafe_allow_html=True)
+                author = r.get("author_email", "Unknown")
+                comment = r.get("comment", "")
+                rating = r.get("rating", 0)
+
+                # מציגים כותב + תגובה בתוך אותה קופסה
+                combined_comment = f"<b>{author}</b><br>{comment}"
+                st.markdown(render_review_box(rating, combined_comment), unsafe_allow_html=True)
+
+                # כפתור מחיקה רק לבעל התגובה / אדמין
+                if can_delete_review(r):
+                    cols = st.columns([1, 6])
+                    with cols[0]:
+                        if st.button("🗑️", key=f"del_review_{r['id']}", help="Delete review"):
+                            res = delete_review(r["id"])
+                            if res.status_code in (200, 204):
+                                st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error(res.text)
         else:
             st.info("No reviews yet. Be the first!")
+
 
         # ------------------------
         # ADD A REVIEW (DESIGNED)
@@ -609,20 +1277,12 @@ elif st.session_state.page == "details":
         if "rating" not in st.session_state:
             st.session_state.rating = 0
 
-        # 5 עמודות צמודות
         cols = st.columns(5, gap="small")
-
         for i, col in enumerate(cols):
             with col:
                 star = "⭐" if st.session_state.rating >= i + 1 else "☆"
-                if st.button(
-                    star,
-                    key=f"star_{i}",
-                    help=f"Rate {i+1}",
-                    use_container_width=True
-                ):
+                if st.button(star, key=f"star_{i}", help=f"Rate {i+1}", use_container_width=True):
                     st.session_state.rating = i + 1
-            st.markdown('</div>', unsafe_allow_html=True)
 
         with st.form("review_form", clear_on_submit=True):
             comment = st.text_area(
@@ -634,25 +1294,25 @@ elif st.session_state.page == "details":
             submit = st.form_submit_button("Submit Review", use_container_width=True)
 
             if submit:
-                if not comment:
+                if st.session_state.rating == 0:
+                    st.error("Please select a rating ⭐")
+                elif not comment.strip():
                     st.error("Please add a comment.")
                 else:
-                    payload = {
-                        "rating": st.session_state.rating,
-                        "comment": comment
-                    }
+                    payload = {"rating": st.session_state.rating, "comment": comment.strip()}
                     try:
                         res = requests.post(
                             f"{RECIPES_URL}/{recipe_id}/reviews",
-                            json=payload
+                            json=payload,
+                            headers=auth_headers()
                         )
                         if res.status_code in (200, 201):
                             st.success("Review added! ⭐")
                             st.cache_data.clear()
-                            st.session_state.rating = 5
+                            st.session_state.rating = 0   # יותר הגיוני לאפס
                             st.rerun()
                         else:
-                            st.error("Failed to submit review.")
+                            st.error(f"Failed to submit review: {res.text}")
                     except Exception as e:
                         st.error(f"Error: {e}")
 # ------------------------
@@ -717,7 +1377,7 @@ elif st.session_state.page == "add":
                     }
                     
                     try:
-                        response = requests.post(RECIPES_URL, json=new_recipe_data)
+                        response = requests.post(RECIPES_URL, json=new_recipe_data,headers=auth_headers())
                         response.raise_for_status()
                         st.success("Recipe Added Successfully!")
                         st.session_state.page = "list"

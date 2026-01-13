@@ -1,9 +1,9 @@
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from enum import Enum
-from sqlalchemy import Column, JSON
-from pydantic import field_validator
-
+from sqlalchemy import Column, JSON, func, DateTime
+from pydantic import field_validator, BaseModel, EmailStr, Field as PydField
+from datetime import datetime
 
 
 # ---------------------------------------
@@ -20,11 +20,21 @@ class Difficulty(str, Enum):
 # ---------------------------------------
 class Review(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+
     recipe_id: int = Field(foreign_key="recipe.id")
+    user_id: int = Field(foreign_key="user.id")  # ✅ מי כתב
+
     rating: int = Field(ge=1, le=5)
     comment: str
 
+    author_email: str = Field(default="", index=True)
+
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    )
+
     recipe: Optional["Recipe"] = Relationship(back_populates="reviews")
+    user: Optional["User"] = Relationship()
 
 
 class Recipe(SQLModel, table=True):
@@ -37,7 +47,7 @@ class Recipe(SQLModel, table=True):
     difficulty: Difficulty
     image_url: Optional[str] = None
 
-    reviews: list[Review] = Relationship(back_populates="recipe")
+    reviews: List["Review"] = Relationship(back_populates="recipe")
 
 class Highlight(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -54,7 +64,7 @@ class RecipeBase(SQLModel):
     instructions_md: str
     time_minutes: int
     difficulty: Difficulty
-    image_url: str  # ← לא Optional
+    image_url: Optional[str] = ""
 
     @field_validator("title")
     @classmethod
@@ -85,6 +95,9 @@ class RecipeCreate(RecipeBase):
 class RecipeRead(RecipeBase):
     id: int
 
+class RecipeReadWithStats(RecipeRead):
+    avg_rating: float = 0.0
+    reviews_count: int = 0
 
 class RecipeUpdate(SQLModel):
     title: Optional[str] = None
@@ -104,3 +117,33 @@ class ReviewRead(SQLModel):
     id: int
     rating: int
     comment: str
+
+    user_id: int
+    author_email: str
+    created_at: Optional[datetime] = None
+    
+class UserRole(str, Enum):
+    user = "user"
+    admin = "admin"
+    
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(index=True, unique=True)
+    password_hash: str
+    role: UserRole = Field(default=UserRole.user)
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str = PydField(min_length=6, max_length=128)
+
+class UserPublic(BaseModel):
+    id: int
+    email: EmailStr
+    role: str
+    class Config:
+        from_attributes = True 
+
+class Favorite(SQLModel, table=True):
+    user_id: int = Field(foreign_key="user.id", primary_key=True)
+    recipe_id: int = Field(foreign_key="recipe.id", primary_key=True)
+    created_at: Optional[datetime] = Field(default=None)

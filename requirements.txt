@@ -16,3 +16,6 @@ requests==2.31.0
 python-multipart==0.0.9
 python-dotenv==1.0.1
 supabase
+PyJWT
+email-validator
+"passlib[bcrypt]"

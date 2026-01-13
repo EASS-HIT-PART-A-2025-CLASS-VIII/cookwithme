@@ -9,10 +9,8 @@ The project was developed as part of an academic assignment to demonstrate **pro
 ## 📖 Overview
 
 CookWithMe provides a complete solution for managing cooking recipes.
+This platform is designed to present my personal, original recipes. 
 
-This platform is designed to present my personal, original recipes. Only the project owner (Yahav) can add, edit, or manage recipes. Future versions will include an authentication layer with two roles.
-
----
 
 ## ✨ Main Features
 
@@ -25,7 +23,7 @@ This platform is designed to present my personal, original recipes. Only the pro
 
 ### 🖥️ Frontend (Streamlit)
 - Visual recipe book with card-based layout
-- Add, edit, and delete recipes
+- Add, edit, and delete recipes (admin only)
 - Image uploads with preview
 - Star-based reviews
 - Instagram-style cooking highlights
@@ -33,10 +31,18 @@ This platform is designed to present my personal, original recipes. Only the pro
 
 ## ➕ Extra Features
 
-* ⭐ **Star ratings** - Add reviews with 1-5 star ratings for each recipe
+* ⭐ **Star ratings & averages** – Users can rate recipes (1–5 stars), with average rating displayed per recipe
 * 🎬 **Instagram-style highlights** - Short cooking videos and stories
 * 🔍 **Smart filtering** - Search recipes by name 
 * 🎯 **Smart filtering** - Difficulty-based filtering 
+
+### 🔐 Authentication & Authorization
+- JWT-based authentication
+- User roles: **admin** and **user**
+- Admin-only access to recipe and highlight management
+- Users can add and delete their own reviews
+- Admins can delete any review
+- Favorites are stored per user
 
 ## 🚀 Run Locally
 
@@ -88,9 +94,7 @@ python -m app.seed.seed_data
 
 The project includes a comprehensive test suite:
 
-* ✅ Tests use an in-memory database
-* ✅ Production DB is never touched
-* ✅ Seed data is NOT loaded during tests
+* ✅ Isolated in-memory database tests (no production DB access)
 
 ### Running Tests
 
@@ -131,13 +135,26 @@ pytest -q
 | POST | `/highlights` | Create highlight |
 | DELETE | `/highlights/{id}` | Delete highlight |
 
+### ❤️ Favorites
+| Method | Endpoint | Description |
+|------|--------|------------|
+| GET | `/favorites` | Get user's favorite recipes |
+| POST | `/favorites/{recipe_id}` | Add recipe to favorites |
+| DELETE | `/favorites/{recipe_id}` | Remove recipe from favorites |
+
+### 🔐 Authentication
+| Method | Endpoint | Description |
+|------|--------|------------|
+| POST | `/auth/register` | Register new user |
+| POST | `/auth/login` | Login and receive JWT |
+
 ---
 
 ## 🐳 Run with Docker Compose 
 
 The project includes Dockerfiles and `docker-compose.yml` for a production-like environment.
 The database is initialized automatically and seed data is loaded on first run.
----
+
 
 ### Environment Variables
 
