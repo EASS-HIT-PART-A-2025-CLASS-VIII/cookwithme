@@ -871,7 +871,6 @@ if st.session_state.page == "list":
             with cols[i % len(cols)]:
                 cover = h.get("cover_url") or "/static/covers/default.jpg"
                 hid = int(h["id"])
-                title = h["title"]
 
                 # toggle: אם לוחצים על אותו highlight שכבר פתוח -> סוגרים
                 if hl_id == hid:
@@ -887,7 +886,6 @@ if st.session_state.page == "list":
                                 <div class="ring">
                                     <div class="inner" style="background-image:url('{cover}')"></div>
                                 </div>
-                                <div class="title">{title}</div>
                             </div>
                         </div>
                     </a>
@@ -1011,7 +1009,7 @@ elif st.session_state.page == "favorites":
     st.markdown("""
     <div style="text-align:center; margin: 35px 0 10px 0;">
         <h1 style="font-size: 2.6rem; font-weight: 800; color: #1e1e1e;">
-             My Favorites❤️
+             My Favorites ❤️
         </h1>
         <div style="height: 4px; width: 170px; background: #c9a24d; margin: 0 auto;"></div>
     </div>

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Response
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Response ,Request
 from sqlmodel import Session, select
 from app.seed.seed_data import run_seed
 from app.database import init_db, get_session
@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from app.auth_jwt import create_access_token
 from .security import require_admin, get_current_user
 from sqlalchemy import func
+import traceback
 
 app = FastAPI()
 class RegisterRequest(BaseModel):
@@ -52,9 +53,11 @@ def login(payload: LoginRequest, session: Session = Depends(get_session)):
 # --------------------------
 
 @app.post("/recipes", response_model=Recipe, status_code=201)
-def create_recipe_endpoint(recipe: RecipeCreate, admin: User = Depends(require_admin)):
+def create_recipe_endpoint(
+    recipe: RecipeCreate,
+    admin: User = Depends(require_admin),
+):
     return create_recipe(recipe)
-
 
 @app.get("/recipes/{recipe_id}", response_model=Recipe)
 def read_one(recipe_id: int):
