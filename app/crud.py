@@ -78,14 +78,16 @@ def create_highlight(session, highlight: Highlight):
 def get_all_highlights(session):
     return session.exec(select(Highlight)).all()
 
-def create_user(db, email: str, password: str, role: str = "user"):
+def create_user(db, email: str, password: str, name: str, role: str = "user"):
     user = User(
         email=email,
         password_hash=hash_password(password),
+        name=name.strip(),
         role=role
     )
     db.add(user)
     db.commit()
+    db.refresh(user)
     return user
 
 def authenticate_user(db, email: str, password: str):
@@ -99,3 +101,5 @@ def authenticate_user(db, email: str, password: str):
 def get_user_by_email(db: Session, email: str):
     statement = select(User).where(User.email == email)
     return db.exec(statement).first()
+
+

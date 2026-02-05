@@ -9,24 +9,82 @@ import streamlit.components.v1 as components
 import jwt
 from urllib.parse import urlencode
 
+st.set_page_config(page_title="CookWithMe", page_icon="🍽️", layout="wide")
 
 
-# --- restore token from URL if session_state lost (for href navigation) ---
-qp_token = st.query_params.get("token")
-if "token" not in st.session_state and qp_token:
-    st.session_state.token = qp_token
-    payload = jwt.decode(qp_token, options={"verify_signature": False})
-    st.session_state.role = payload.get("role", "user")
-    st.session_state.is_admin = (st.session_state.role == "admin")
-    st.session_state.page = "list" 
+# ================= TOKEN BOOTSTRAP (THE ONLY ONE) =================
+
+# A) Try to restore from localStorage (do NOT stop unless redirect already triggered)
+if not st.session_state.get("token") and not st.query_params.get("token"):
+    if st.query_params.get("_ls") != "1":
+        components.html("""
+        <script>
+        try {
+            const t = window.parent.localStorage.getItem("cwm_token");
+            if (t) {
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set("_ls", "1");
+            url.searchParams.set("token", t);
+            window.parent.location.replace(url.toString());
+            }
+        } catch(e) {}
+        </script>
+        """, height=0)
+    else:
+        # We are in the middle of redirect cycle
+        st.stop()
+
+# B) If token is in URL, store it in session, then clean URL WITHOUT full reload
+tok = st.query_params.get("token")
+if tok:
+    st.session_state.token = tok
+
+    keep = {}
+    for k in ("hl", "fav"):
+        v = st.query_params.get(k)
+        if v:
+            keep[k] = v
+
+    # clean query params in streamlit (no hard reload)
+    st.query_params.clear()
+    for k, v in keep.items():
+        st.query_params[k] = v
+
+    # also clean URL in browser (no reload)
+    qs = "?" + urlencode(keep) if keep else ""
+    components.html(
+        f"""
+        <script>
+          try {{
+            window.parent.history.replaceState({{}}, "", window.parent.location.pathname + {qs!r});
+          }} catch(e) {{}}
+        </script>
+        """,
+        height=0,
+    )
+
+    st.rerun()
+
+# C) Clean _ls if it stayed
+if st.query_params.get("_ls"):
+    st.query_params.pop("_ls", None)
+
+token = st.session_state.get("token")
+# ================= PAGE DEFAULT + GUARD =================
+if "page" not in st.session_state:
+    st.session_state.page = "list" if st.session_state.get("token") else "login"
+
+hl_q = st.query_params.get("hl")
+
+if st.session_state.page not in ("login", "signup") and not st.session_state.get("token"):
+    if hl_q:
+        st.session_state.post_login_hl = hl_q
+    st.session_state.page = "login"
+    st.rerun()
 
 # ------------------------
 # 1. CONFIG & STATE
 # ------------------------
-if "page" not in st.session_state:
-    st.session_state.page = "login" if "token" not in st.session_state else "list"
-
-st.set_page_config(page_title="CookWithMe", page_icon="🍽️", layout="wide")
 
 BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 RECIPES_URL = f"{BASE_URL}/recipes"
@@ -35,15 +93,9 @@ HIGHLIGHTS_URL = f"{BASE_URL}/highlights"
 # ------------------------
 # security check
 # ------------------------
-
-if st.session_state.get("page") != "login" and "token" not in st.session_state:
-    st.session_state.page = "login"
-    st.rerun()
-
 def auth_headers():
-    return {
-        "Authorization": f"Bearer {st.session_state.token}"
-    }
+    tok = st.session_state.get("token")
+    return {"Authorization": f"Bearer {tok}"} if tok else {}
 
 def add_favorite(recipe_id: int) -> bool:
     res = requests.post(f"{BASE_URL}/favorites/{recipe_id}", headers=auth_headers())
@@ -78,6 +130,7 @@ def get_favorites() -> list:
         st.warning("Favorites response is not JSON")
         st.caption(res.text[:500] if res.text else "Empty response")
         return []
+
 
 # ------------------------
 # 2. CUSTOM CSS
@@ -292,12 +345,6 @@ section[data-testid="stMain"] button[data-testid^="baseButton"]:hover{
   color: var(--accent) !important;
 }
 /* ============ HIGHLIGHTS ============ */
-.hl-wrap{
-  cursor: pointer;
-  position: relative;
-  z-index: 9999 !important;     /* מעל הכל */
-  pointer-events: auto !important;
-}
 
 .hl-wrap *{
   pointer-events: none !important;
@@ -346,11 +393,23 @@ section[data-testid="stMain"] button[data-testid^="baseButton"]:hover{
 }
                 
 .hl-link{
+  display: inline-block;
   text-decoration: none !important;
   color: inherit !important;
-  display: inline-block;
+  position: relative;
+  z-index: 99999 !important;
+  pointer-events: auto !important;
 }
-.hl-link:visited{ color: inherit !important; }
+
+.hl-wrap{
+  cursor: pointer;
+  position: relative;
+  pointer-events: auto !important;
+}
+
+.hl-wrap *{
+  pointer-events: auto !important;
+}
 
 /* ============ STARS (RATING) ============ */
 .star-row{
@@ -383,8 +442,6 @@ section[data-testid="stMain"] button[data-testid^="baseButton"]:hover{
   transform: scale(1.15);
 }
 
-/* אם את בונה את הסטארים עם st.columns בלי wrapper star-row,
-   זה עדיין יעזור לצמצם את הריווח */
 section.main div[data-testid="stButton"] > button[key^="star_"]{
   background: transparent !important;
   box-shadow: none !important;
@@ -396,7 +453,6 @@ section.main div[data-testid="stButton"] > button[key^="star_"]{
 }
 
 /* ============ LOGIN MODE (CARD CENTER) ============ */
-/* לא מסתיר סיידבר — רק ממרכז את התוכן ומלביש כרטיס */
 .stApp.login-mode section.main > div{
   display:flex;
   justify-content:center;
@@ -550,7 +606,33 @@ section.main div[data-testid="stButton"] > button[key^="star_"]{
   line-height:1;
 }
 .fav-link:hover{ background: rgba(255,255,255,0.32); }
+div[data-testid="stMain"] div.stButton > button,
+div[data-testid="stMain"] div[data-testid="stButton"] > button,
+div[data-testid="stMain"] button[data-testid^="baseButton"],
+div[data-testid="stMain"] button[kind="primary"],
+div[data-testid="stMain"] button[kind="secondary"]{
+  background-color: #D4AF37 !important;
+  background-image: linear-gradient(135deg, #D4AF37, #F5D76E) !important;
+  color: #2b2b2b !important;
+  border: none !important;
+  border-radius: 14px !important;
+  font-weight: 700 !important;
+  padding: 0.75em 1.5em !important;
+  box-shadow: 0 4px 10px rgba(212,175,55,0.35) !important;
+  transition: all 0.2s ease-in-out !important;
+}
 
+div[data-testid="stMain"] div.stButton > button:hover,
+div[data-testid="stMain"] div[data-testid="stButton"] > button:hover,
+div[data-testid="stMain"] button[data-testid^="baseButton"]:hover,
+div[data-testid="stMain"] button[kind="primary"]:hover,
+div[data-testid="stMain"] button[kind="secondary"]:hover{
+  background-color: #F5D76E !important;
+  background-image: linear-gradient(135deg, #F5D76E, #D4AF37) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 14px rgba(212,175,55,0.5) !important;
+}
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -621,6 +703,28 @@ def fetch_highlights():
         return res.json()
     return []
 
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_recommendations(limit: int = 3):
+    res = requests.get(
+        f"{BASE_URL}/recommendations",
+        params={"limit": limit},
+        headers=auth_headers(),
+        timeout=15
+    )
+    res.raise_for_status()
+    data = res.json()
+    return data.get("recommendations", []) if isinstance(data, dict) else []
+
+@st.cache_data(ttl=60, show_spinner=False)
+def fetch_recipe_by_id(recipe_id: int):
+    res = requests.get(
+        f"{BASE_URL}/recipes/{recipe_id}",
+        headers=auth_headers(),
+        timeout=15
+    )
+    res.raise_for_status()
+    return res.json()
+
 # ------------------------
 # 3. SIDEBAR NAVIGATION
 # ------------------------
@@ -629,10 +733,14 @@ with st.sidebar:
     st.markdown('<div class="signature">by Yahav</div>', unsafe_allow_html=True)
     st.write("Welcome to my digital kitchen.")
     st.markdown("---")
-    if "token" in st.session_state:
+    name = st.session_state.get("user_name")
+    if name:
+        st.write(f"Hi, {name} 👋")
+
+    if st.session_state.get("token"):
         if st.button("📖 All Recipes", use_container_width=True):
             st.query_params.clear()
-            st.query_params["token"] = st.session_state.token
+            
             st.session_state.page = "list"
             st.session_state.search_query = "" 
             st.session_state.filter_choice = "All"  
@@ -646,25 +754,33 @@ with st.sidebar:
         if st.button("❤️ Favorites", use_container_width=True):
             st.session_state.page = "favorites"
             st.rerun()
-    
 
-        if st.button("🚪 Logout", use_container_width=True):
+        if st.button("🤖 AI Recommendations", use_container_width=True):
+            st.session_state.page = "recommendations"
+            st.rerun()
+
+        if st.button("🚪 Logout"):
             st.session_state.clear()
             st.query_params.clear()
-            st.session_state.page = "login"
-            st.rerun()
+            components.html("""
+            <script>
+                try { window.parent.localStorage.removeItem("cwm_token"); } catch(e) {}
+                window.parent.location.href = window.parent.location.origin;
+            </script>
+            """, height=0)
+            st.stop()
 
     st.markdown("---")
     st.caption("Developed with ❤️ using Streamlit")
 
 
-set_login_mode(st.session_state.get("page") == "login")
+set_login_mode(st.session_state.get("page") in ("login", "signup"))
+
 
 # ------------------------
 # PAGE: LOGIN
 # ------------------------
 if st.session_state.page == "login":
-    set_login_mode(True)
 
     st.markdown('<h1 class="login-title">🍽️ CookWithMe</h1>', unsafe_allow_html=True)
     st.markdown('<div class="login-subtitle">Sign in to your digital kitchen</div>', unsafe_allow_html=True)
@@ -698,15 +814,44 @@ if st.session_state.page == "login":
                         st.error("Login succeeded but there is no token")
                     else:
                         st.session_state.token = token
+                        components.html(
+                        f"""
+                        <script>
+                          try {{
+                            window.parent.localStorage.setItem("cwm_token", {token!r});
+                        }} catch(e) {{}}
+                        </script>
+                        """,
+                        height=0,
+                        )
+
                         payload = jwt.decode(token, options={"verify_signature": False})
+                        st.session_state.user_id = int(payload.get("sub")) if payload.get("sub") else None 
                         st.session_state.role = payload.get("role", "user")
+                        st.session_state.user_name = payload.get("name", "")  
                         st.session_state.is_admin = (st.session_state.role == "admin")
                         st.cache_data.clear()
                         st.session_state.page = "list"
-                        st.query_params.clear()
-                        st.query_params["token"] = token
+                        hl_after = st.session_state.pop("post_login_hl", None)
+                        new_url = "/"
+                        if hl_after:
+                            new_url = f"/?hl={hl_after}"
+                            
+                        components.html(
+                            f"""
+                            <script>
+                                (function() {{
+                                    const target = "{new_url}";
+                                    window.parent.history.replaceState({{}}, "", target);
+                                }})();
+                            </script>
+                            """,
+                            height=0,
+                        )
+                        st.session_state.page = "list"
                         st.rerun()
-
+                            
+                        st.stop() # עוצר את הריצה הנוכחית כדי שה-JS יתבצע
                 elif res.status_code == 401:
                     st.error("Email or Password incorrect")
 
@@ -738,6 +883,7 @@ if st.session_state.page == "login":
     if create:
         st.session_state.page = "signup"
         st.rerun()
+    
 # ------------------------
 # PAGE: SIGNUP
 # ------------------------
@@ -746,16 +892,20 @@ if st.session_state.page == "signup":
     st.markdown("<h3 style='text-align:center;'>Create account</h3>", unsafe_allow_html=True)
 
     with st.form("signup_form"):
+        name = st.text_input("Name")
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
         confirm_password = st.text_input("Confirm Password", type="password")
         submit = st.form_submit_button("Sign up")
 
     if submit:
-        email_clean = email.strip()
+        name_clean = (name or "").strip()
+        email_clean = (email or "").strip()
 
         # ---- basic validations ----
-        if not email_clean or not password or not confirm_password:
+        if not name_clean:
+            st.error("Please fill Name")
+        elif not email_clean or not password or not confirm_password:
             st.error("Please fill Email + Password + Confirm Password")
         elif password != confirm_password:
             st.error("Passwords do not match")
@@ -765,18 +915,16 @@ if st.session_state.page == "signup":
             try:
                 res = requests.post(
                     f"{BASE_URL}/auth/register",
-                    json={"email": email_clean, "password": password},
+                    json={"email": email_clean, "password": password, "name": name_clean},
                     timeout=10
                 )
 
                 if res.status_code == 201:
                     st.success("Account created ✅ You can log in now.")
-                    # optional: auto go to login
                     st.session_state.page = "login"
                     st.rerun()
 
                 elif res.status_code == 409:
-                    # This is the "email already registered" case
                     detail = ""
                     try:
                         detail = res.json().get("detail", "")
@@ -785,7 +933,7 @@ if st.session_state.page == "signup":
                     st.error(detail or "This email is already registered. Try logging in.")
 
                 elif res.status_code == 422:
-                    st.error("Invalid input (check email format / password rules)")
+                    st.error("Invalid input (check name/email format / password rules)")
                     try:
                         st.caption(res.json())
                     except Exception:
@@ -817,8 +965,7 @@ if st.session_state.page == "signup":
 # PAGE: LIST RECIPES
 # ------------------------
 if st.session_state.page == "list":
-    if "token" in st.session_state:
-        st.query_params["token"] = st.session_state.token
+
     hl_q = st.query_params.get("hl")
     if hl_q:
         try:
@@ -865,63 +1012,99 @@ if st.session_state.page == "list":
     if highlights:
         cols = st.columns(min(len(highlights), 6), gap="large")
 
-        tok = st.session_state.get("token", "")
-
         for i, h in enumerate(highlights):
             with cols[i % len(cols)]:
                 cover = h.get("cover_url") or "/static/covers/default.jpg"
                 hid = int(h["id"])
 
-                # toggle: אם לוחצים על אותו highlight שכבר פתוח -> סוגרים
-                if hl_id == hid:
-                    qs = urlencode({"token": tok})
-                else:
-                    qs = urlencode({"token": tok, "hl": hid})
+                # קליק = toggle query param בלי ניווט מלא
+                toggle_js = f"""
+    <script>
+    (function(){{
+    const u = new URL(window.parent.location.href);
+    const cur = u.searchParams.get('hl');
 
+    if (cur === '{hid}') {{
+        u.searchParams.delete('hl');
+    }} else {{
+        u.searchParams.set('hl', '{hid}');
+    }}
+
+    // לעדכן URL בלי reload
+    window.parent.history.replaceState({{}}, '', u.pathname + u.search);
+    }})();
+    </script>
+    """
+
+                clicked = st.button(" ", key=f"hl_{hid}", help="Open highlight")
                 st.markdown(
                     f"""
-                    <a class="hl-link" href="?{qs}" target="_self">
-                        <div class="hl-wrap">
-                            <div class="hl-visual">
-                                <div class="ring">
-                                    <div class="inner" style="background-image:url('{cover}')"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </a>
-                    """,
+    <div class="hl-wrap">
+    <div class="hl-visual">
+        <div class="ring">
+        <div class="inner" style="background-image:url('{cover}')"></div>
+        </div>
+    </div>
+    </div>
+    """,
                     unsafe_allow_html=True
                 )
+
+                if clicked:
+                    # עדכון query params בצד של Streamlit (שומר session!)
+                    if hl_id == hid:
+                        st.query_params.pop("hl", None)
+                        st.session_state.selected_highlight_id = None
+                    else:
+                        st.query_params["hl"] = str(hid)
+                        st.session_state.selected_highlight_id = hid
+
+                    # לעדכן גם את ה-URL בדפדפן (בשביל שיראה ?hl=)
+                    components.html(toggle_js, height=0)
+
+                    st.rerun()
     # -------- VIDEO PLAYER --------
     if hl_id is not None:
-        close_qs = urlencode({"token": st.session_state.get("token","")})
 
-        st.markdown(
-            f"""
-            <div style="display:flex; justify-content:center; margin: 10px 0 18px 0;">
-                <a href="?{close_qs}" target="_self"
-                style="text-decoration:none; padding:10px 16px; border-radius:999px;
-                        background: rgba(0,0,0,0.08); color:#111; font-weight:700;">
-                    ✖ Close highlight
-                </a>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        # Close highlight (בלי href, בלי ניווט מלא)
+        c1, c2, c3 = st.columns([1, 2, 1])
+        with c2:
+            if st.button("✖ Close highlight", use_container_width=True, key="close_hl"):
+                # לנקות state + query params של Streamlit
+                st.session_state.selected_highlight_id = None
+                st.query_params.pop("hl", None)
 
-        selected = next((h for h in highlights if int(h["id"]) == int(hl_id)), None)
-        if selected:
-            col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
-            with col_center:
-                st.markdown(
-                    f"""
-                    <video src="{selected['video_url']}" controls
-                        style="width:100%; max-height:65vh; border-radius:18px;
-                            box-shadow:0 20px 50px rgba(0,0,0,0.25); background:black;">
-                    </video>
-                    """,
-                    unsafe_allow_html=True
-                )
+                # לנקות גם URL בדפדפן בלי reload
+                components.html("""
+                <script>
+                try {
+                    const u = new URL(window.parent.location.href);
+                    u.searchParams.delete('hl');
+                    window.parent.history.replaceState({}, '', u.pathname + u.search);
+                } catch(e) {}
+                </script>
+                """, height=0)
+
+                st.rerun()
+
+        # לבחור את ההיילייט הנבחר
+        selected = next((h for h in highlights if int(h.get("id", -1)) == int(hl_id)), None)
+
+        if not selected:
+            st.error("Selected highlight not found (id mismatch).")
+        else:
+            url = selected.get("video_url")
+
+            # אופציונלי: הדפסה זמנית לדיבאג (תורידי אחרי שמסתדר)
+            # st.caption(f"DEBUG video_url: {url}")
+
+            if not url:
+                st.error("This highlight has no video_url.")
+            else:
+                col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
+                with col_center:
+                    # ✅ הכי יציב ב־Streamlit במקום <video> ב-HTML
+                    st.video(url)
     # -------- RECIPES --------
     try:
         with st.spinner("🍳 Loading recipes..."):
@@ -964,7 +1147,6 @@ if st.session_state.page == "list":
             with cols[recipes_displayed % 3]:
                 difficulty = recipe["difficulty"]
                 is_fav = recipe["id"] in favorite_ids
-                tok = st.session_state.get("token", "")
                 heart = "❤️" if is_fav else "🤍"
 
                 card_html = f"""<div class="recipe-card">
@@ -973,7 +1155,7 @@ if st.session_state.page == "list":
                             style="width:100%; height:200px; object-fit:cover;">
                         <span class="badge bg-{difficulty}">{difficulty}</span>
                         <div class="fav-badge">
-                            <a class="fav-link" href="?token={tok}&fav={recipe['id']}" target="_self">{heart}</a>
+                            <a class="fav-link" href="?fav={recipe['id']}" target="_self">{heart}</a>
                         </div>
                     </div>
                     <div style="padding:15px;">
@@ -985,7 +1167,6 @@ if st.session_state.page == "list":
                 st.markdown(card_html, unsafe_allow_html=True)
 
                 if st.button("View Recipe 👈", key=f"btn_{recipe['id']}", use_container_width=True):
-                    st.session_state.selected_recipe = recipe
                     st.session_state.selected_recipe_id = recipe["id"]
                     st.session_state.edit_mode = False
                     st.session_state.page = "details"
@@ -1035,7 +1216,7 @@ elif st.session_state.page == "favorites":
                             style="width:100%; height:200px; object-fit:cover;">
                         <span class="badge bg-{difficulty}">{difficulty}</span>
                         <div class="fav-badge">
-                            <a class="fav-link" href="?token={tok}&fav={recipe['id']}" target="_self">❤️</a>
+                            <a class="fav-link" href="?fav={recipe['id']}" target="_self">❤️</a>
                         </div>
                     </div>
                     <div style="padding:15px;">
@@ -1057,16 +1238,82 @@ elif st.session_state.page == "favorites":
 
     except Exception as e:
         st.error(f"Failed to load favorites: {e}")
+
+
+# ------------------------
+# PAGE: AI
+# ------------------------
+elif st.session_state.page == "recommendations":
+    if st.button("⬅️ Back"):
+        st.session_state.page = "list"
+        st.rerun()
+
+    st.markdown("""
+    <div style="text-align:center; margin: 35px 0 10px 0;">
+        <h1 style="font-size: 2.6rem; font-weight: 800; color: #1e1e1e;">
+             AI Picks For You 🤖✨
+        </h1>
+        <div style="height: 4px; width: 170px; background: #c9a24d; margin: 0 auto;"></div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.write("Based on what you watched recently")
+
+    try:
+        with st.spinner("Cooking up recommendations..."):
+            recs = fetch_recommendations(limit=3)
+
+        if not recs:
+            st.info("No recommendations yet. Watch a few recipes and try again 🙂")
+            st.stop()
+
+        cols = st.columns(3)
+        for i, recipe in enumerate(recs):
+            with cols[i % 3]:
+                difficulty = recipe.get("difficulty", "Easy")
+
+                card_html = f"""<div class="recipe-card">
+                    <div style="position: relative;">
+                        <img src="{recipe.get('image_url','')}" loading="lazy"
+                            style="width:100%; height:200px; object-fit:cover;">
+                        <span class="badge bg-{difficulty}">{difficulty}</span>
+                    </div>
+                    <div style="padding:15px;">
+                        <div style="color:#777; font-size:0.9rem;">
+                            ⏱️ {recipe.get('time_minutes', 0)} minutes • ⭐ {recipe.get('avg_rating', 0)} ({recipe.get('reviews_count', 0)})
+                        </div>
+                    </div>
+                </div>"""
+
+                st.markdown(card_html, unsafe_allow_html=True)
+
+                if st.button("View Recipe 👈", key=f"rec_btn_{recipe['id']}", use_container_width=True):
+                    st.session_state.selected_recipe_id = recipe["id"]
+                    st.session_state.prev_page = "recommendations"  
+                    st.session_state.page = "details"
+                    st.rerun()
+
+    except requests.exceptions.HTTPError as e:
+        st.error("Failed to load AI recommendations.")
+        st.caption(str(e))
+    except Exception as e:
+        st.error(f"Unexpected error: {e}")
+
+
 # ------------------------
 # PAGE: DETAILS
 # ------------------------
 elif st.session_state.page == "details":
-    
-    # SAFETY CHECK
-    if "selected_recipe" not in st.session_state:
-        st.session_state.page = "list"
 
-    recipe = st.session_state.selected_recipe
+    if st.button("⬅️ Back"):
+        st.session_state.page = st.session_state.get("prev_page", "list")
+        st.rerun()
+
+    rid = st.session_state.get("selected_recipe_id")
+    if not rid:
+        st.session_state.page = "list"
+        st.rerun()
+
+    recipe = fetch_recipe_by_id(rid) 
 
     # -------------------------------------------------
     # ✅ EDIT MODE

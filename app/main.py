@@ -5,17 +5,25 @@ from app.database import init_db, get_session
 from app.storage import upload_video
 from app.models import Recipe, RecipeCreate, RecipeUpdate, Review, ReviewCreate, ReviewRead, Highlight, User, Favorite, UserRole, RecipeReadWithStats
 from app.crud import create_recipe,get_all_recipes,get_recipe_by_id,update_recipe,delete_recipe,create_user, authenticate_user, get_user_by_email,create_highlight, get_all_highlights
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from fastapi.staticfiles import StaticFiles
 from app.auth_jwt import create_access_token
 from .security import require_admin, get_current_user
 from sqlalchemy import func
 import traceback
+from app.routes.recommendations import router as rec_router
+from dotenv import load_dotenv
+load_dotenv()
+
+
 
 app = FastAPI()
+app.include_router(rec_router)
+
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(min_length=6, max_length=128)
+    name: str
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -37,8 +45,17 @@ def register(payload: RegisterRequest, session: Session = Depends(get_session)):
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
 
-    user = create_user(session, payload.email, payload.password, role="user")
-    return {"id": user.id, "email": user.email, "role": user.role}
+    if not payload.name.strip():
+        raise HTTPException(status_code=422, detail="Name is required")
+
+    user = create_user(
+        session,
+        payload.email,
+        payload.password,
+        name=payload.name,     # ✅ חדש
+        role="user"
+    )
+    return {"id": user.id, "email": user.email, "name": user.name, "role": user.role}
 
 @app.post("/auth/login")
 def login(payload: LoginRequest, session: Session = Depends(get_session)):
@@ -46,7 +63,10 @@ def login(payload: LoginRequest, session: Session = Depends(get_session)):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    token = create_access_token(subject=str(user.id), role=user.role)
+    role = getattr(user.role, "value", user.role)
+    name = (getattr(user, "name", "") or "").strip() or "Guest"
+
+    token = create_access_token(subject=str(user.id), role=role, name=name)
     return {"access_token": token, "token_type": "bearer"}
 # --------------------------
 # RECIPES CRUD

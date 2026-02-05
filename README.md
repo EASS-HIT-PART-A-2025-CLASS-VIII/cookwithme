@@ -165,6 +165,7 @@ DATABASE_URL=postgresql://postgres:<PASSWORD>@<PROJECT>.supabase.co:6543/postgre
 ### Run
 ```
 docker compose up --build
+docker compose run --rm backend-test
 ```
 
 ### Services

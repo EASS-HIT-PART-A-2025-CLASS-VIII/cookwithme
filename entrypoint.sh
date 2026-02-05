@@ -1,13 +1,17 @@
-#!/bin/sh
+#!/usr/bin/env sh
 set -e
-
-export PYTHONPATH=/app
 
 echo "⏳ Initializing database..."
 python -c "from app.database import init_db; init_db()"
 
-echo "🌱 Running seed data..."
-python -m app.seed.seed_data
+echo "🌱 Running seed if needed (safe)..."
+python -c "from app.seed.seed_data import run_seed; run_seed()"
+
+# worker / custom command
+if [ "$#" -gt 0 ]; then
+  echo "🧰 Running command: $*"
+  exec "$@"
+fi
 
 echo "🚀 Starting API..."
-exec "$@"
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000

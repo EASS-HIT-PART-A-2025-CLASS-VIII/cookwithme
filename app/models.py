@@ -22,7 +22,7 @@ class Review(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
     recipe_id: int = Field(foreign_key="recipe.id")
-    user_id: int = Field(foreign_key="user.id")  # ✅ מי כתב
+    user_id: int = Field(foreign_key="user.id")  
 
     rating: int = Field(ge=1, le=5)
     comment: str
@@ -54,6 +54,21 @@ class Highlight(SQLModel, table=True):
     title: str
     video_url: str
     cover_url: Optional[str] = None
+
+class Favorite(SQLModel, table=True):
+    __tablename__ = "favorite"
+    user_id: int = Field(foreign_key="user.id", primary_key=True)
+    recipe_id: int = Field(foreign_key="recipe.id", primary_key=True)
+    created_at: Optional[datetime] = Field(default=None)
+
+class RecipeView(SQLModel, table=True):
+    __tablename__ = "recipe_view"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    recipe_id: int = Field(foreign_key="recipe.id", index=True)
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    )
 # ---------------------------------------
 # API MODELS (REQUEST / RESPONSE)
 # ---------------------------------------
@@ -130,6 +145,7 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(index=True, unique=True)
     password_hash: str
+    name: str = Field(index=True) 
     role: UserRole = Field(default=UserRole.user)
 
 class RegisterRequest(BaseModel):
@@ -143,7 +159,3 @@ class UserPublic(BaseModel):
     class Config:
         from_attributes = True 
 
-class Favorite(SQLModel, table=True):
-    user_id: int = Field(foreign_key="user.id", primary_key=True)
-    recipe_id: int = Field(foreign_key="recipe.id", primary_key=True)
-    created_at: Optional[datetime] = Field(default=None)
