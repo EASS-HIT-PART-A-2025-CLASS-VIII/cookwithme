@@ -43,7 +43,6 @@ def test_get_recipe_by_id(client, admin_headers):
 
     recipe_id = create_response.json()["id"]
 
-    # /recipes/{id} currently NOT protected in your backend, so no headers needed
     get_response = client.get(f"/recipes/{recipe_id}")
     assert get_response.status_code == 200
     assert get_response.json()["title"] == "Salad"

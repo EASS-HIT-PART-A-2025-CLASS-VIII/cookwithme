@@ -45,7 +45,7 @@ if tok:
         if v:
             keep[k] = v
 
-    # clean query params in streamlit (no hard reload)
+    # clean query params in streamlit
     st.query_params.clear()
     for k, v in keep.items():
         st.query_params[k] = v

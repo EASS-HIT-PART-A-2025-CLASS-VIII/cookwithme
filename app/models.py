@@ -46,7 +46,6 @@ class Recipe(SQLModel, table=True):
     time_minutes: int
     difficulty: Difficulty
 
-    # נשאר Optional כדי לא לשבור DB קיים, אבל ה-API יחייב ב-Create/Update
     image_url: Optional[str] = None
 
     reviews: List["Review"] = Relationship(back_populates="recipe")
@@ -86,7 +85,6 @@ class RecipeBase(SQLModel):
     time_minutes: int
     difficulty: Difficulty
 
-    # ב-Base נשאיר Optional כדי ש-Update יוכל לרשת בלי חובה
     image_url: Optional[str] = None
 
     @field_validator("title")
@@ -118,7 +116,6 @@ class RecipeBase(SQLModel):
 
 
 class RecipeCreate(RecipeBase):
-    # ✅ כאן מחייבים image_url בטסטים של Create
     image_url: str
 
 
@@ -132,7 +129,6 @@ class RecipeReadWithStats(RecipeRead):
 
 
 class RecipeUpdate(SQLModel):
-    # ✅ כל השדות Optional, אבל עם ולידציות כמו שהטסטים מצפים
     title: Optional[str] = None
     ingredients: Optional[List[str]] = None
     instructions_md: Optional[str] = None

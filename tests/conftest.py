@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 from sqlmodel import SQLModel, create_engine, Session, select
 from sqlalchemy.pool import StaticPool
 
-# מאפשר import של app/
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app import database
@@ -23,7 +22,6 @@ test_engine = create_engine(
     poolclass=StaticPool,
 )
 
-# מחליפים את ה-engine של האפליקציה
 database.engine = test_engine
 
 
@@ -37,12 +35,6 @@ def setup_db():
 
 @pytest.fixture
 def client():
-    """
-    IMPORTANT:
-    Use TestClient as a context manager so FastAPI lifespan/startup runs.
-    Also override get_session (if exists) to force using the test engine.
-    """
-    # Override dependency if your app uses Depends(database.get_session)
     if hasattr(database, "get_session"):
         def override_get_session():
             with Session(test_engine) as session:
@@ -69,7 +61,6 @@ def register_user(client: TestClient, email: str, password: str, name="Test User
         "/auth/register",
         json={"email": email, "password": password, "name": name},
     )
-    # 201 = נרשם, 409 = כבר קיים (מותר בטסטים)
     assert res.status_code in (201, 409)
     return res
 

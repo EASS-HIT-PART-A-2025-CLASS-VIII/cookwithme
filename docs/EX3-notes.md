@@ -2,7 +2,7 @@ markdown# EX3 Notes — CookWithMe
 
 ## Overview
 
-CookWithMe is a local full-stack microservices project built for EX3.
+CookWithMe is a local full-stack microservices project built as the final EX3 assignment.
 
 The system includes:
 - **FastAPI backend** — recipes, reviews, highlights, favorites, authentication
@@ -68,7 +68,7 @@ Everything runs locally using **Docker Compose**.
 This is intentional and documented.
 
 ### API Contract Testing
-Schemathesis can be run against the OpenAPI spec:
+Schemathesis can be run against the OpenAPI spec to validate API contracts and edge cases:
 schemathesis run http://localhost:8000/openapi.json
 ---
 
@@ -93,7 +93,9 @@ Seed initial recipes **once**, without duplicating data on every run.
 ### Refresh Job Evidence
 
 Example worker log:
+```text
 [2026-02-05T18:12:03Z] 🔄 Refresh ran | views=42 recipes=18
+```
 
 ## Manual execution 
 
@@ -110,8 +112,6 @@ python scripts/refresh.py --loop
 ```
 
 This is useful for local development and debugging without Docker Compose.
-
-🎯 This satisfies the Session 09 async refresh requirement.
 
 ---
 
@@ -167,7 +167,7 @@ The script:
 - Guides the reviewer through the core flows
 ---
 
-## Security Tests (Required by EX3)
+## Security Tests
 
 The test suite includes:
 - ❌ Missing token → 401
@@ -189,7 +189,7 @@ Authorization is enforced at request time and verified by automated tests.
 
 ---
 
-## Redis & Recommendations (Session 09)
+## Redis & Recommendations
 
 ### Usage
 Redis is used for:
@@ -220,7 +220,7 @@ Each enhancement is covered by API or integration tests.
 
 ---
 
-## Testing Strategy
+### Backend Test Coverage
 
 ### Backend Tests
 - CRUD for recipes
@@ -264,19 +264,7 @@ docker compose up --build
 ## ⚠️ Known Limitations
 
 - Supabase storage URLs require valid bucket permissions
-- Redis is optional but recommended for best behavior
+- Redis is optional; when unavailable, the backend degrades gracefully without caching.
 - No external cloud deployment — local only (by design)
 
 ---
-
-## ✅ Checklist for EX3 Submission
-
-- ✅ FastAPI backend with SQLModel + Postgres
-- ✅ Streamlit frontend
-- ✅ Redis integration
-- ✅ JWT auth + role-based security
-- ✅ Admin/user authorization tests
-- ✅ Seed strategy documented
-- ✅ Docker Compose setup
-- ✅ Background worker with Redis lock & retries 
-- ✅ `docs/EX3-notes.md` (this file)

@@ -4,7 +4,7 @@ This runbook explains how to run the full stack locally using Docker Compose:
 - FastAPI backend
 - Streamlit frontend
 - Redis
-- Worker (optional but recommended)
+- Worker 
 
 ---
 
@@ -16,10 +16,6 @@ This runbook explains how to run the full stack locally using Docker Compose:
 Example `.env`:
 ```env
 DATABASE_URL=postgresql://postgres:<PASSWORD>@<PROJECT>.supabase.co:6543/postgres?sslmode=require
-
-SUPABASE_URL=...
-SUPABASE_SERVICE_KEY=...
-SUPABASE_BUCKET=...
 
 JWT_SECRET=change_me
 JWT_EXPIRE_MINUTES=60
@@ -72,9 +68,7 @@ Seed runs only if:
 - `SEED_DATA=true`
 - and DB has no recipes yet
 
-### Run seed (one time)
-
-**Option A (recommended):**
+### Run seed 
 
 1. Set `SEED_DATA=true` in `.env`
 2. Start stack:
@@ -82,8 +76,6 @@ Seed runs only if:
    docker compose up --build
 ```
 3. Afterwards set `SEED_DATA=false`
-
-**Option B:** Keep `SEED_DATA=true` always (safe) since seed script skips when DB already has data.
 
 ---
 
@@ -97,7 +89,6 @@ docker compose ps
 **Ping Redis:**
 ```bash
 docker compose exec redis redis-cli ping
-# expected: PONG
 ```
 
 **Inspect keys:**
@@ -140,7 +131,7 @@ docker compose logs -f worker
 
 ---
 
-## 🧪 Run tests in Docker (recommended)
+## 🧪 Run tests in Docker 
 
 **If you have a test service/container:**
 ```bash
@@ -182,15 +173,13 @@ docker compose exec backend pytest -q
 
 ---
 
-### 3) Seed images use localhost:8000/static and don't load in frontend
+### 3) Static files not loading (images)
 
-In Docker, frontend is not the same network namespace as host.
+When accessing the application from a browser, static files must always be referenced via:
 
-**Preferred:**
-- Serve static from backend container and reference as `http://backend:8000/static/...` for internal calls
-- Or use absolute `http://localhost:8000/static/...` for browser-facing links (since browser hits host ports)
+- `http://localhost:8000/static/...`
 
-Pick one approach and keep it consistent.
+Docker internal hostnames (e.g. `backend`) are not accessible from the browser.
 
 ---
 

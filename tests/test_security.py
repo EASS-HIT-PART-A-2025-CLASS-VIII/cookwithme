@@ -55,7 +55,7 @@ def create_admin_and_token(client):
     email = f"admin_{uuid.uuid4().hex[:10]}@example.com"
     password = "StrongPass123!"
     register_user(client, email, password, name="Admin User")
-    promote_user_to_admin(email)  # ✅ make DB role admin
+    promote_user_to_admin(email)  
     token = login_user(client, email, password)
     return token
 

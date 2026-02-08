@@ -2,7 +2,7 @@ import hashlib
 import json
 
 MODEL_NAME = "gpt-4.1-mini"
-PROMPT_VERSION = "v1"  # תעלי ל-v2 אם משנים פרומפט/פורמט
+PROMPT_VERSION = "v1"  
 
 def make_reco_cache_key(user_id: int, limit: int, viewed_ids: list[int], fav_ids: list[int]) -> str:
     payload = {
