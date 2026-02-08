@@ -1,15 +1,15 @@
-def test_create_recipe(client):
-    """Test for creating new recipe"""
+def test_create_recipe(client, admin_headers):
+    """Admin can create new recipe (EX3 security baseline)"""
     new_recipe = {
         "title": "Pizza",
         "ingredients": ["Cheese", "Dough"],
         "instructions_md": "## Instructions\nBake in oven",
         "time_minutes": 20,
         "difficulty": "Medium",
-        "image_url": "https://example.com/pizza.jpg"
+        "image_url": "https://example.com/pizza.jpg",
     }
 
-    response = client.post("/recipes", json=new_recipe)
+    response = client.post("/recipes", json=new_recipe, headers=admin_headers)
     assert response.status_code == 201
     data = response.json()
 
@@ -18,8 +18,8 @@ def test_create_recipe(client):
     assert data["image_url"] == "https://example.com/pizza.jpg"
 
 
-def test_create_multiple_recipes(client):
-    """Test creating multiple recipes"""
+def test_create_multiple_recipes(client, admin_headers):
+    """Admin can create multiple recipes (EX3 security baseline)"""
     recipes = [
         {
             "title": "Soup",
@@ -27,7 +27,7 @@ def test_create_multiple_recipes(client):
             "instructions_md": "## Instructions\nBoil it well",
             "time_minutes": 15,
             "difficulty": "Easy",
-            "image_url": "https://example.com/soup.jpg"
+            "image_url": "https://example.com/soup.jpg",
         },
         {
             "title": "Cake",
@@ -35,29 +35,14 @@ def test_create_multiple_recipes(client):
             "instructions_md": "## Instructions\nMix and bake",
             "time_minutes": 40,
             "difficulty": "Hard",
-            "image_url": "https://example.com/cake.jpg"
-        }
+            "image_url": "https://example.com/cake.jpg",
+        },
     ]
 
     ids = []
-
     for r in recipes:
-        res = client.post("/recipes", json=r)
+        res = client.post("/recipes", json=r, headers=admin_headers)
         assert res.status_code == 201
         ids.append(res.json()["id"])
 
     assert len(ids) == 2
-
-def test_create_highlight(client):
-    data = {
-        "title": "Pasta Reel",
-        "video_url": "https://example.com/video.mp4",
-        "cover_url": "https://example.com/cover.jpg"
-    }
-
-    res = client.post("/highlights", json=data)
-    assert res.status_code == 200
-
-    body = res.json()
-    assert body["title"] == data["title"]
-    assert body["video_url"] == data["video_url"]

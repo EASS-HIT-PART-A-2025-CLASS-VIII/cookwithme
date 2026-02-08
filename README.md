@@ -44,6 +44,21 @@ This platform is designed to present my personal, original recipes.
 - Admins can delete any review
 - Favorites are stored per user
 
+## 🔄 Background Services
+
+### Redis
+Redis is used for:
+- Caching AI recommendation results
+- Preventing duplicate recomputation
+- Distributed locking and idempotency
+
+### Background Worker
+A background worker periodically runs an async refresh job:
+- Executes `scripts/refresh.py`
+- Uses Redis for locking and retries
+- Safe to restart (no duplicate work)
+
+
 ## 🚀 Run Locally
 
 ### 1. Setup Environment
@@ -83,10 +98,7 @@ streamlit run streamlit_app.py
 ### 🌱 Seed Data
 
 A seed script is included to populate the database with initial recipes.
-
-```bash
-python -m app.seed.seed_data
-```
+Seed data is loaded automatically on startup when `SEED_DATA=true`.
 
 ---
 
@@ -152,7 +164,8 @@ pytest -q
 
 ## 🐳 Run with Docker Compose 
 
-The project includes Dockerfiles and `docker-compose.yml` for a production-like environment.
+The project includes Dockerfiles and `docker-compose.yml` for a production-like environment,
+including the FastAPI backend, Streamlit frontend, Redis, and an optional background worker.
 The database is initialized automatically and seed data is loaded on first run.
 
 
@@ -169,12 +182,10 @@ docker compose run --rm backend-test
 ```
 
 ### Services
-Backend API: http://localhost:8000
-
-API Docs (Swagger): http://localhost:8000/docs
-
-Frontend UI: http://localhost:8501
-
+- Backend API: http://localhost:8000
+- Frontend UI: http://localhost:8501
+- Redis: internal service (cache & locks)
+- Worker: background refresh service
 ---
 
 

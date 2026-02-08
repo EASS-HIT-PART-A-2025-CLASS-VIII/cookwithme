@@ -6,6 +6,7 @@ import os
 import time
 import hashlib
 import redis
+from redis.exceptions import ConnectionError, TimeoutError
 
 from app.database import get_session
 from app.security import get_current_user
@@ -31,13 +32,6 @@ def make_reco_cache_key(
     fav_ids: list[int],
     candidate_ids: list[int],
 ) -> str:
-    """
-    Cache key includes:
-    - user + signals (views/favs)
-    - limit
-    - candidate ids snapshot (so cache updates when catalog changes)
-    - model + version
-    """
     payload = {
         "u": user_id,
         "limit": limit,
@@ -50,6 +44,35 @@ def make_reco_cache_key(
     s = json.dumps(payload, sort_keys=True)
     h = hashlib.sha256(s.encode("utf-8")).hexdigest()[:24]
     return f"reco:{h}"
+
+
+def redis_get_safe(key: str):
+    try:
+        return redis_client.get(key)
+    except (ConnectionError, TimeoutError):
+        return None
+
+
+def redis_setex_safe(key: str, ttl: int, value: str):
+    try:
+        redis_client.setex(key, ttl, value)
+        return True
+    except (ConnectionError, TimeoutError):
+        return False
+
+
+def redis_set_lock_safe(key: str, ttl: int) -> bool:
+    try:
+        return bool(redis_client.set(key, "1", nx=True, ex=ttl))
+    except (ConnectionError, TimeoutError):
+        return False
+
+
+def redis_del_safe(key: str):
+    try:
+        redis_client.delete(key)
+    except (ConnectionError, TimeoutError):
+        pass
 
 
 # -----------------------
@@ -128,29 +151,41 @@ def get_recommendations(
         return {"recommendations": []}
 
     # -----------------------
-    # Redis cache + lock (save OpenAI cost)
+    # Redis cache + lock (soft dependency)
     # -----------------------
     cache_key = make_reco_cache_key(user.id, limit, viewed_ids, fav_ids, candidate_ids)
-
-    # 1) Cache-first
-    cached = redis_client.get(cache_key)
-    if cached:
-        return json.loads(cached)
-
     lock_key = f"{cache_key}:lock"
 
-    # 2) Single-flight lock (avoid parallel duplicate OpenAI calls)
-    got_lock = redis_client.set(lock_key, "1", nx=True, ex=LOCK_TTL_SECONDS)
-    if not got_lock:
-        # someone else is computing -> wait briefly for cache
-        for _ in range(10):  # ~2 seconds
-            time.sleep(0.2)
-            cached = redis_client.get(cache_key)
-            if cached:
-                return json.loads(cached)
+    # 1) Cache-first (safe)
+    cached = redis_get_safe(cache_key)
+    if cached:
+        try:
+            return json.loads(cached)
+        except Exception:
+            # corrupted cache -> ignore
+            pass
 
-        # do NOT call OpenAI (avoid extra cost)
-        return {"recommendations": [], "status": "busy_try_again"}
+    # 2) Single-flight lock (safe)
+    got_lock = redis_set_lock_safe(lock_key, LOCK_TTL_SECONDS)
+
+    # אם Redis נפל -> got_lock False, אבל אנחנו עדיין רוצים לעבוד (פשוט בלי lock/cache)
+    if got_lock is False:
+        # ננסה "busy" רק אם Redis באמת עובד. אם Redis לא עובד, אין לנו דרך לדעת busy.
+        # אז פשוט נמשיך ונחשב.
+        pass
+    else:
+        if not got_lock:
+            # someone else is computing -> wait briefly for cache
+            for _ in range(10):  # ~2 seconds
+                time.sleep(0.2)
+                cached = redis_get_safe(cache_key)
+                if cached:
+                    try:
+                        return json.loads(cached)
+                    except Exception:
+                        pass
+            # do NOT call OpenAI (avoid extra cost)
+            return {"recommendations": [], "status": "busy_try_again"}
 
     try:
         prompt = {
@@ -187,13 +222,12 @@ def get_recommendations(
         data = json.loads(raw)
         recs = data.get("recommendations", [])
 
-        # Map rec IDs -> recipe fields for frontend
         ids = [r.get("recipe_id") for r in recs if isinstance(r, dict) and "recipe_id" in r]
         ids = [i for i in ids if isinstance(i, int)]
 
         if not ids:
             result = {"recommendations": []}
-            redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(result))
+            redis_setex_safe(cache_key, CACHE_TTL_SECONDS, json.dumps(result))
             return result
 
         recipes = session.exec(select(Recipe).where(Recipe.id.in_(ids))).all()
@@ -215,7 +249,7 @@ def get_recommendations(
                 )
 
         result = {"recommendations": out}
-        redis_client.setex(cache_key, CACHE_TTL_SECONDS, json.dumps(result))
+        redis_setex_safe(cache_key, CACHE_TTL_SECONDS, json.dumps(result))
         return result
 
     except Exception as e:
@@ -223,8 +257,6 @@ def get_recommendations(
         return {"recommendations": [], "status": "ai_unavailable"}
 
     finally:
-        # Always release the lock so we don't get stuck in "busy"
-        try:
-            redis_client.delete(lock_key)
-        except Exception:
-            pass
+        # release lock only if we got it (and only if redis is up)
+        if got_lock:
+            redis_del_safe(lock_key)
