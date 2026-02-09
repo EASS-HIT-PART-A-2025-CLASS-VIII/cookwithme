@@ -37,11 +37,13 @@ https://youtu.be/_UmNX5Q32UQ
 ## ➕ Extra Features
 
 * ⭐ **Star ratings & averages** – Users can rate recipes (1–5 stars), with average rating displayed per recipe
-* 🎬 **Instagram-style highlights** - Short cooking videos and stories
-* 🔍 **Smart filtering** - Search recipes by name 
-* 🎯 **Smart filtering** - Difficulty-based filtering 
+* ❤️ **Favorites** – Logged-in users can save and manage their favorite recipes
+* 🤖 **AI-based recommendations (OpenAI)** – Personalized recipe recommendations based on user viewing history and interactions
+* 🎬 **Instagram-style highlights** – Short cooking videos and stories
+* 🔍 **Smart search** – Search recipes by name
+* 🎯 **Difficulty filtering** – Filter recipes by difficulty level
 
-### 🔐 Authentication & Authorization
+## 🔐 Authentication & Authorization
 - JWT-based authentication
 - User roles: **admin** and **user**
 - Admin-only access to recipe and highlight management
