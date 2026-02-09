@@ -28,6 +28,7 @@ class Review(SQLModel, table=True):
     comment: str
 
     author_email: str = Field(default="", index=True)
+    author_name: str = Field(default="", index=True)
 
     created_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -176,6 +177,7 @@ class ReviewRead(SQLModel):
 
     user_id: int
     author_email: str
+    author_name: str = "" 
     created_at: Optional[datetime] = None
 
 

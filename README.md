@@ -11,6 +11,11 @@ The project was developed as part of an academic assignment to demonstrate **pro
 CookWithMe provides a complete solution for managing cooking recipes.
 This platform is designed to present my personal, original recipes. 
 
+## 🎥 Demo Video
+
+https://youtu.be/_UmNX5Q32UQ
+
+[![CookWithMe Demo Video](https://img.youtube.com/vi/_UmNX5Q32UQ/0.jpg)](https://youtu.be/_UmNX5Q32UQ)
 
 ## ✨ Main Features
 
@@ -48,7 +53,7 @@ This platform is designed to present my personal, original recipes.
 
 ### Redis
 Redis is used for:
-- Caching AI recommendation results
+- Caching AI recommendation results (OpenAI)
 - Preventing duplicate recomputation
 - Distributed locking and idempotency
 
@@ -104,7 +109,10 @@ Seed data is loaded automatically on startup when `SEED_DATA=true`.
 
 ## 🧪 Testing
 
-The project includes a comprehensive test suite:
+The project includes a comprehensive test suite (≈30 automated tests):
+
+- ~30 unit and integration tests covering CRUD, authentication,
+  authorization, and database isolation
 
 * ✅ Isolated in-memory database tests (no production DB access)
 
@@ -120,6 +128,22 @@ docker compose run --rm backend-test
 export DATABASE_URL=sqlite://
 pytest -q
 ```
+
+---
+
+## 🤖 AI Recommendations
+
+The system integrates directly with the OpenAI API to generate personalized recipe recommendations.
+
+Recommendations are based on the user’s recent activity, including viewed recipes and interactions.
+A concise prompt is sent to OpenAI, and the model returns a small set of relevant recipe suggestions.
+
+To keep the system efficient and within scope:
+- API calls are limited and controlled
+- Results are cached using Redis
+- Recommendations are refreshed only when needed
+
+This feature demonstrates real-world AI integration in a full-stack application.
 
 ---
 
@@ -183,11 +207,23 @@ docker compose run --rm backend-test
 
 ### Services
 - Backend API: http://localhost:8000
-- Frontend UI: http://localhost:8501
+- Frontend UI: http://localhost:8501 (or next available port if occupied)
 - Redis: internal service (cache & locks)
 - Worker: background refresh service
 ---
+## 🤖 AI Assistance
 
+This project was developed with the assistance of AI tools (ChatGPT) for:
+- Code structure suggestions
+- Debugging and refactoring guidance
+- Docker and Docker Compose configuration review
+- Streamlit UI improvements
+
+All generated suggestions were reviewed, adapted, and verified locally by running
+the application, executing automated tests, and validating the system behavior end-to-end.
+Final design decisions, implementation, and integration were done manually.
+
+---
 
 ## 👨‍🍳 Personal Note
 

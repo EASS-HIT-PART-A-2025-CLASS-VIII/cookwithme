@@ -8,10 +8,18 @@ import os
 import streamlit.components.v1 as components
 import jwt
 from urllib.parse import urlencode
+from streamlit_cookies_manager import EncryptedCookieManager
 
 st.set_page_config(page_title="CookWithMe", page_icon="🍽️", layout="wide")
 
+COOKIE_SECRET = os.getenv("COOKIE_SECRET", "dev-only-secret")
+cookies = EncryptedCookieManager(
+    prefix="cookwithme_",
+    password=COOKIE_SECRET
+)
 
+if not cookies.ready():
+    st.stop()
 # ================= TOKEN BOOTSTRAP (THE ONLY ONE) =================
 
 # A) Try to restore from localStorage (do NOT stop unless redirect already triggered)
@@ -70,6 +78,14 @@ if st.query_params.get("_ls"):
     st.query_params.pop("_ls", None)
 
 token = st.session_state.get("token")
+
+if not st.session_state.get("token"):
+    saved = cookies.get("token")
+    if saved:
+        st.session_state.token = saved
+        st.session_state.user_name = cookies.get("user_name", "")
+        st.session_state.user_id = int(cookies.get("user_id", "0") or 0) or None
+        st.session_state.role = cookies.get("role", "user")
 # ================= PAGE DEFAULT + GUARD =================
 if "page" not in st.session_state:
     st.session_state.page = "list" if st.session_state.get("token") else "login"
@@ -223,7 +239,6 @@ section.main button[aria-label^="View Recipe"]:hover{
   color: var(--accent) !important;
 }
 
-/* עוד CTA שאת כנראה רוצה בעיצוב זהב */
 section.main button[aria-label="Submit Review"],
 section.main button[aria-label="Save Recipe 🎉"],
 section.main button[aria-label="✏️ Edit"],
@@ -606,7 +621,8 @@ section.main div[data-testid="stButton"] > button[key^="star_"]{
   line-height:1;
 }
 .fav-link:hover{ background: rgba(255,255,255,0.32); }
-div[data-testid="stMain"] div.stButton > button,
+
+                div[data-testid="stMain"] div.stButton > button,
 div[data-testid="stMain"] div[data-testid="stButton"] > button,
 div[data-testid="stMain"] button[data-testid^="baseButton"],
 div[data-testid="stMain"] button[kind="primary"],
@@ -662,9 +678,37 @@ def delete_review(review_id: int):
     return requests.delete(f"{BASE_URL}/reviews/{review_id}", headers=auth_headers())
 
 def render_review_box(rating: int, comment: str) -> str:
+    rating = int(rating or 0)
+    rating = max(0, min(5, rating))
+
     full_star = "⭐"
     empty_star = "☆"
     stars = full_star * rating + empty_star * (5 - rating)
+
+    return f"""
+    <div style="
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 14px 16px;
+        margin: 10px 0;
+        border: 1px solid rgba(0,0,0,0.06);
+        box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+    ">
+        <div style="font-size: 1.1rem; margin-bottom: 6px;">
+            {stars}
+        </div>
+        <div style="color:#222; line-height:1.5;">
+            {comment}
+        </div>
+    </div>
+    """
+
+def go_to_details(recipe_id: int, from_page: str):
+    st.session_state.selected_recipe_id = recipe_id
+    st.session_state.prev_page = from_page
+    st.session_state.edit_mode = False
+    st.session_state.page = "details"
+    st.rerun()
 
     return f"""
 <div style="
@@ -760,15 +804,25 @@ with st.sidebar:
             st.rerun()
 
         if st.button("🚪 Logout"):
-            st.session_state.clear()
+            cookies["token"] = ""
+            cookies["user_id"] = ""
+            cookies["user_name"] = ""
+            cookies["role"] = ""
+            cookies.save()
+
+            for k in ["token","user_id","user_name","role","is_admin"]:
+                st.session_state.pop(k, None)
+
             st.query_params.clear()
+
             components.html("""
             <script>
-                try { window.parent.localStorage.removeItem("cwm_token"); } catch(e) {}
-                window.parent.location.href = window.parent.location.origin;
+            try { window.parent.localStorage.removeItem("cwm_token"); } catch(e) {}
+            window.parent.history.replaceState({}, "", window.parent.location.pathname);
             </script>
             """, height=0)
-            st.stop()
+
+            st.rerun()
 
     st.markdown("---")
     st.caption("Developed with ❤️ using Streamlit")
@@ -783,7 +837,7 @@ set_login_mode(st.session_state.get("page") in ("login", "signup"))
 if st.session_state.page == "login":
 
     st.markdown('<h1 class="login-title">🍽️ CookWithMe</h1>', unsafe_allow_html=True)
-    st.markdown('<div class="login-subtitle">Sign in to your digital kitchen</div>', unsafe_allow_html=True)
+    st.markdown('<div class="login-subtitle">Sign in to my digital kitchen</div>', unsafe_allow_html=True)
     st.markdown('<div class="login-accent"></div>', unsafe_allow_html=True)
 
     # ---- ONE FORM ONLY ----
@@ -831,6 +885,11 @@ if st.session_state.page == "login":
                         st.session_state.user_name = payload.get("name", "")  
                         st.session_state.is_admin = (st.session_state.role == "admin")
                         st.cache_data.clear()
+                        cookies["token"] = token
+                        cookies["user_id"] = str(st.session_state.user_id or "")
+                        cookies["user_name"] = st.session_state.user_name or ""
+                        cookies["role"] = st.session_state.role or ""
+                        cookies.save()
                         st.session_state.page = "list"
                         hl_after = st.session_state.pop("post_login_hl", None)
                         new_url = "/"
@@ -1066,15 +1125,13 @@ if st.session_state.page == "list":
     # -------- VIDEO PLAYER --------
     if hl_id is not None:
 
-        # Close highlight (בלי href, בלי ניווט מלא)
-        c1, c2, c3 = st.columns([1, 2, 1])
+        c1, c2, c3 = st.columns([2,1,2])
         with c2:
-            if st.button("✖ Close highlight", use_container_width=True, key="close_hl"):
+            if st.button("✖ Close", key="close_hl"):
                 # לנקות state + query params של Streamlit
                 st.session_state.selected_highlight_id = None
                 st.query_params.pop("hl", None)
 
-                # לנקות גם URL בדפדפן בלי reload
                 components.html("""
                 <script>
                 try {
@@ -1087,7 +1144,6 @@ if st.session_state.page == "list":
 
                 st.rerun()
 
-        # לבחור את ההיילייט הנבחר
         selected = next((h for h in highlights if int(h.get("id", -1)) == int(hl_id)), None)
 
         if not selected:
@@ -1095,15 +1151,12 @@ if st.session_state.page == "list":
         else:
             url = selected.get("video_url")
 
-            # אופציונלי: הדפסה זמנית לדיבאג (תורידי אחרי שמסתדר)
-            # st.caption(f"DEBUG video_url: {url}")
 
             if not url:
                 st.error("This highlight has no video_url.")
             else:
                 col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
                 with col_center:
-                    # ✅ הכי יציב ב־Streamlit במקום <video> ב-HTML
                     st.video(url)
     # -------- RECIPES --------
     try:
@@ -1167,10 +1220,7 @@ if st.session_state.page == "list":
                 st.markdown(card_html, unsafe_allow_html=True)
 
                 if st.button("View Recipe 👈", key=f"btn_{recipe['id']}", use_container_width=True):
-                    st.session_state.selected_recipe_id = recipe["id"]
-                    st.session_state.edit_mode = False
-                    st.session_state.page = "details"
-                    st.rerun()
+                    go_to_details(recipe["id"], from_page="list")
             recipes_displayed += 1
 
         if recipes_displayed == 0:
@@ -1228,11 +1278,7 @@ elif st.session_state.page == "favorites":
                 st.markdown(card_html, unsafe_allow_html=True)
 
                 if st.button("View Recipe 👈", key=f"btn_{recipe['id']}", use_container_width=True):
-                    st.session_state.selected_recipe = recipe
-                    st.session_state.selected_recipe_id = recipe["id"]
-                    st.session_state.edit_mode = False
-                    st.session_state.page = "details"
-                    st.rerun()
+                    go_to_details(recipe["id"], from_page="favorites")
 
             displayed += 1
 
@@ -1256,7 +1302,6 @@ elif st.session_state.page == "recommendations":
         <div style="height: 4px; width: 170px; background: #c9a24d; margin: 0 auto;"></div>
     </div>
     """, unsafe_allow_html=True)
-    st.write("Based on what you watched recently")
 
     try:
         with st.spinner("Cooking up recommendations..."):
@@ -1287,10 +1332,7 @@ elif st.session_state.page == "recommendations":
                 st.markdown(card_html, unsafe_allow_html=True)
 
                 if st.button("View Recipe 👈", key=f"rec_btn_{recipe['id']}", use_container_width=True):
-                    st.session_state.selected_recipe_id = recipe["id"]
-                    st.session_state.prev_page = "recommendations"  
-                    st.session_state.page = "details"
-                    st.rerun()
+                    go_to_details(recipe["id"], from_page="recommendations")
 
     except requests.exceptions.HTTPError as e:
         st.error("Failed to load AI recommendations.")
@@ -1304,8 +1346,10 @@ elif st.session_state.page == "recommendations":
 # ------------------------
 elif st.session_state.page == "details":
 
-    if st.button("⬅️ Back"):
-        st.session_state.page = st.session_state.get("prev_page", "list")
+    prev = st.session_state.get("prev_page", "list")
+
+    if st.button("⬅️ Back", key="details_back"):
+        st.session_state.page = prev
         st.rerun()
 
     rid = st.session_state.get("selected_recipe_id")
@@ -1314,6 +1358,10 @@ elif st.session_state.page == "details":
         st.rerun()
 
     recipe = fetch_recipe_by_id(rid) 
+    if not recipe:
+        st.error("Recipe not found (maybe deleted).")
+        st.session_state.page = "list"
+        st.rerun()
 
     # -------------------------------------------------
     # ✅ EDIT MODE
@@ -1398,7 +1446,9 @@ elif st.session_state.page == "details":
                     response.raise_for_status()
 
                     st.success("✅ Updated!")
-                    st.session_state.selected_recipe = response.json()
+
+                    st.cache_data.clear()  
+                    st.session_state.selected_recipe = fetch_recipe_by_id(recipe['id'])
                     st.session_state.edit_mode = False
                     st.rerun()
 
@@ -1409,11 +1459,11 @@ elif st.session_state.page == "details":
     # VIEW MODE
     # -------------------------------------------------
     else:
-        recipe_id = st.session_state.selected_recipe_id
-        if st.button("⬅️ Back to recipes list"):
+        recipe_id = st.session_state.get("selected_recipe_id")
+        if not recipe_id:
+            st.error("No recipe selected.")
             st.session_state.page = "list"
             st.rerun()
-
         img_url = recipe.get('image_url') or "https://via.placeholder.com/800x400?text=No+Image"
 
         # HERO SECTION
@@ -1468,12 +1518,26 @@ elif st.session_state.page == "details":
             with col_del:
                 if st.button("🗑️ Delete", type="primary", use_container_width=True):
                     try:
-                        requests.delete(f"{RECIPES_URL}/{st.session_state.selected_recipe_id}",headers=auth_headers())
-                        st.success("Deleted!")
-                        st.session_state.page = "list"
-                        st.rerun()
-                    except:
-                        st.error("Delete failed")
+                        res = requests.delete(
+                            f"{RECIPES_URL}/{recipe_id}",
+                            headers=auth_headers(),
+                            timeout=15
+                        )
+
+                        if res.status_code in (200, 204):
+                            st.success("Deleted!")
+                            st.cache_data.clear()
+
+                            st.session_state.selected_recipe_id = None
+                            st.session_state.selected_recipe = None
+
+                            st.session_state.page = "list"
+                            st.rerun()
+                        else:
+                            st.error(f"Delete failed ({res.status_code}): {res.text}")
+
+                    except requests.exceptions.RequestException as e:
+                        st.error(f"Delete failed: {e}")
 
             with col_upd:
                 if st.button("✏️ Edit", use_container_width=True):
@@ -1490,11 +1554,18 @@ elif st.session_state.page == "details":
 
         if reviews:
             for r in reviews:
-                author = r.get("author_email", "Unknown")
+                email = r.get("author_email", "")
+                my_id = st.session_state.get("user_id")
+                my_name = st.session_state.get("user_name")
+
+                if r.get("user_id") == my_id and my_name:
+                    author = my_name
+                else:
+                    email = r.get("author_email", "")
+                    author = (r.get("author_name") or "").strip() or "User"
                 comment = r.get("comment", "")
                 rating = r.get("rating", 0)
 
-                # מציגים כותב + תגובה בתוך אותה קופסה
                 combined_comment = f"<b>{author}</b><br>{comment}"
                 st.markdown(render_review_box(rating, combined_comment), unsafe_allow_html=True)
 
@@ -1554,7 +1625,7 @@ elif st.session_state.page == "details":
                         if res.status_code in (200, 201):
                             st.success("Review added! ⭐")
                             st.cache_data.clear()
-                            st.session_state.rating = 0   # יותר הגיוני לאפס
+                            st.session_state.rating = 0   
                             st.rerun()
                         else:
                             st.error(f"Failed to submit review: {res.text}")
@@ -1622,9 +1693,18 @@ elif st.session_state.page == "add":
                     }
                     
                     try:
-                        response = requests.post(RECIPES_URL, json=new_recipe_data,headers=auth_headers())
+                        response = requests.post(
+                        RECIPES_URL,
+                        json=new_recipe_data,
+                        headers=auth_headers(),
+                        timeout=15
+                    )
                         response.raise_for_status()
+
                         st.success("Recipe Added Successfully!")
+
+                        st.cache_data.clear() 
+
                         st.session_state.page = "list"
                         st.rerun()
                         

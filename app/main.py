@@ -3,14 +3,11 @@ from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session, select
 from sqlalchemy import func
 from pydantic import BaseModel, EmailStr, Field
-
 from dotenv import load_dotenv
 load_dotenv()
-
 from app.seed.seed_data import run_seed
 from app.database import init_db, get_session
 from app.storage import upload_video
-
 from app.models import (
     Recipe,
     RecipeCreate,
@@ -23,7 +20,6 @@ from app.models import (
     Favorite,
     RecipeReadWithStats,
 )
-
 from app.crud import (
     create_recipe,
     get_all_recipes,
@@ -36,10 +32,8 @@ from app.crud import (
     create_highlight,
     get_all_highlights,
 )
-
 from app.auth_jwt import create_access_token
 from app.security import require_admin, get_current_user
-
 from app.routes.recommendations import router as rec_router
 
 
@@ -251,6 +245,7 @@ def add_review(
         recipe_id=recipe_id,
         user_id=user.id,
         author_email=user.email,
+        author_name=(user.name or "").strip(),
         rating=payload.rating,
         comment=payload.comment,
     )
